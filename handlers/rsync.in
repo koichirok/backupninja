@@ -855,7 +855,7 @@ function update_metadata {
   local folder
 
   if [ "$dest" == "local" ]; then
-    metadata="`dirname $dest_path`/metadata/`basename $dest_path`"
+    metadata="$(dirname $dest_path)/metadata/$(basename $dest_path)"
     mkdir -p $metadata
     # Use the backup start time and not the time the backup was
     # finished, otherwise daily rotations might not take place.
@@ -864,8 +864,12 @@ function update_metadata {
     echo "$starttime" > $metadata/created
     $touch $backupdir/$SECTION/$suffix
   else
-    folder="`echo $dest_path | cut -d : -f 2`"
-    metadata="`dirname $folder`/metadata/`basename $folder`"
+    if [ "$protocol" == "rsync" ]; then
+      folder="$(echo $dest_path | sed -nr 's,[^:]*:[^:]*:[^/]*([^:]*),\1,p')"
+    else
+      folder="$(echo $dest_path | sed -nr 's,[^:]*:([^:]*),\1,p')"
+    fi
+    metadata="$(dirname $folder)/metadata/$(basename $folder)"
 
 (
   $ssh_cmd <<EOF
