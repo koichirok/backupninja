@@ -1,0 +1,12 @@
+[Unit]
+Description=Check every hour should Backupninja be runned
+After=local-fs.target
+
+[Timer]
+OnCalendar=hourly
+AccuracySec=1h
+RandomizedDelaySec=120
+Persistent=true
+
+[Install]
+WantedBy=timers.target
