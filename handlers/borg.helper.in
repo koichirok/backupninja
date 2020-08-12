@@ -75,9 +75,16 @@ do_borg_src() {
 }
 
 do_borg_dest() {
-   declare -a tmp_array
-
    set -o noglob
+
+   radioBox "$borg_protocol" "Connection protocol for remote repositories" \
+   "ssh" "use ssh as remote shell" on \
+   "sftp" "use sftp as alternative to a remote shell" off
+   [ $? = 1 ] && return;
+   result="$REPLY"
+   borg_protocol="$result"
+
+   declare -a tmp_array
    REPLY=
    while [ -z "$REPLY" -o -z "$borg_directory" -o -z "$borg_host" \
    -o -z "$borg_port" -o -z "$borg_user" -o -z "$borg_id_file" -o -z "$borg_archive" -o -z "$borg_compression" ]
@@ -195,57 +202,143 @@ do_borg_ssh_con() {
       fi
    fi
 
-   ssh -o PreferredAuthentications=publickey -i $borg_id_file $borg_host -p $borg_port -l $borg_user "exit" 2> /dev/null
-   if [ $? -ne 0 ]; then
-      echo "Copying root's public ssh key to authorized_keys of $borg_user@$borg_host. When prompted, specify the password for user $borg_user@$borg_host."
-      if ! ssh-copy-id -i "${borg_id_file}.pub" -p $borg_port $borg_user@$borg_host ; then
-         echo "FAILED: Couldn't copy root's public ssh key to authorized_keys of $borg_user@$borg_host."
-         ssh -p $borg_port $borg_user@$borg_host 'test -w .ssh || test -w .'
-         result=$?
+   if [ "$borg_protocol" == "ssh" ]; then
+      ssh -o PreferredAuthentications=publickey -i $borg_id_file $borg_host -p $borg_port -l $borg_user "exit" 2> /dev/null
+      if [ $? -ne 0 ]; then
+         echo "Copying root's public ssh key to authorized_keys of $borg_user@$borg_host. When prompted, specify the password for user $borg_user@$borg_host."
+         if ! ssh-copy-id -i "${borg_id_file}.pub" -p $borg_port $borg_user@$borg_host ; then
+            echo "FAILED: Couldn't copy root's public ssh key to authorized_keys of $borg_user@$borg_host."
+            ssh -p $borg_port $borg_user@$borg_host 'test -w .ssh || test -w .'
+            result=$?
+            echo "Hit return to continue."
+            read
+            case $result in
+               0 )   msgBox "$borg_title: success" "Directories are writable." ;;
+               1 )   msgBox "$borg_title: error" "Connected successfully to $borg_user@$borg_host, but unable to write. Check ownership and modes of ~$borg_user on $borg_host." ;;
+               255 ) msgBox "$borg_title: error" "Failed to connect to $borg_user@$borg_host. Check hostname, username, and password. Also, make sure sshd is running on the destination host." ;;
+               * )   msgBox "$borg_title: error" "Unexpected error (return code ${result})." ;;
+            esac
+            return
+         else
+            echo "Done. Hit return to continue"
+            read
+         fi
+      else
+         echo "$borg_user's public key is already in authorized_keys of $borg_user@$borg_host."
          echo "Hit return to continue."
          read
-         case $result in
-            0 )   msgBox "$borg_title: success" "Directories are writable." ;;
-            1 )   msgBox "$borg_title: error" "Connected successfully to $borg_user@$borg_host, but unable to write. Check ownership and modes of ~$borg_user on $borg_host." ;;
-            255 ) msgBox "$borg_title: error" "Failed to connect to $borg_user@$borg_host. Check hostname, username, and password. Also, make sure sshd is running on the destination host." ;;
-            * )   msgBox "$borg_title: error" "Unexpected error (return code ${result})." ;;
-         esac
-         return
-      else
-         echo "Done. Hit return to continue"
-         read
       fi
-   else
-      echo "root@localhost is already in authorized_keys of $borg_user@$borg_host."
-      echo "Hit return to continue."
-      read
+   fi
+
+   if [ "$borg_protocol" = "sftp" ]; then
+      KEYS_TMPFILE=$(mktemp --dry-run authorized_keys.XXXXXXXXXX)
+      trap "rm -f ${KEYS_TMPFILE}" EXIT
+      SHARED_CON_TMPFILE=$(mktemp --dry-run shared-ssh-connection.XXXXXXXXXX)
+      echo "exit" | sftp -P $borg_port -o "PasswordAuthentication=no" -o "IdentityFile=${borg_id_file}" $borg_user@$borg_host
+      if [ $? -eq 0 ]; then
+         echo "$borg_user's public key is already in authorized_keys of $borg_user@$borg_host."
+         echo "Done. Hit return to continue."
+         read
+      else
+         echo "Copying root's public ssh key with sftp to authorized_keys of $borg_user@$borg_host. When prompted, specify the password for user $borg_user@$borg_host."
+         ssh  -p ${borg_port} -f -N -M -o "ControlMaster=auto" -o "ControlPath=${SHARED_CON_TMPFILE}" ${borg_user}@${borg_host}
+         trap "ssh -o "ControlMaster=auto" -o "ControlPath=${SHARED_CON_TMPFILE}" -O exit ${borg_user}@${borg_host}" EXIT
+
+         echo "mkdir .ssh" | sftp -o "ControlMaster=auto" -o "ControlPath=${SHARED_CON_TMPFILE}" ${borg_user}@${borg_host}
+         echo "chmod 600 .ssh" | sftp -o "ControlMaster=auto" -o "ControlPath=${SHARED_CON_TMPFILE}" ${borg_user}@${borg_host}
+
+         sftp -o "ControlMaster=auto" -o "ControlPath=${SHARED_CON_TMPFILE}" ${borg_user}@${borg_host}:/home/.ssh/authorized_keys /tmp/authorized_keys
+         if [ $? -ne 0 ]; then
+            cat ${borg_id_file}.pub > ${KEYS_TMPFILE}
+            echo "put ${KEYS_TMPFILE} .ssh/authorized_keys" | sftp -o "ControlMaster=auto" -o "ControlPath=${SHARED_CON_TMPFILE}" ${borg_user}@${borg_host}
+         else
+            cat ${borg_id_file}.pub >> ${KEYS_TMPFILE}
+            echo "put ${KEYS_TMPFILE} .ssh/authorized_keys" | sftp -o "ControlMaster=auto" -o "ControlPath=${SHARED_CON_TMPFILE}" ${borg_user}@${borg_host}
+         fi
+
+         echo "chmod 700 .ssh/authorized_keys" | sftp -o "ControlMaster=auto" -o "ControlPath=${SHARED_CON_TMPFILE}" ${borg_user}@${borg_host}
+      fi
    fi
 
    # test to see if the remote borg backup directory exists and is writable
    echo "Testing to see if remote borg backup directory exists and is writable"
-   ssh -p $borg_port -i $borg_id_file $borg_user@$borg_host "test -d ${borg_directory}"
-   if [ $? = 0 ]; then
-      ssh -p $borg_port -i $borg_id_file $borg_user@$borg_host "test -w $borg_directory"
-      if [ $? != 0 ]; then
-         msgBox "destination directory is not writable!" "The remote destination directory is not writable by the user you specified. Please fix the permissions on the directory and then try again."
-         remote_status=failed
-      fi
-   else
-      booleanBox "Remote directory does not exist" "The destination backup directory does not exist, do you want me to create it for you?"
+   if [ "$borg_protocol" == "ssh" ]; then
+      ssh -p $borg_port -i $borg_id_file $borg_user@$borg_host "test -d ${borg_directory}"
       if [ $? = 0 ]; then
-         ssh -p $borg_port -i $borg_id_file $borg_user@$borg_host "mkdir -p ${borg_directory}"
-         result=$?
-         case $result in
-            0) msgBox "$borg_title: success" "Creation of the remote destination directory was a success!";;
-            1) msgBox "$borg_title: error" "Connected successfully to $borg_user@$borg_host, but was unable to create the destination directory, check the directory permissions."
-               remote_status=failed;;
-            255) msgBox "$borg_title: error" "Failed to connect to $borg_user@$borg_host. Check hostname, username, and password. Also, make sure sshd is running on the destination host."
-               remote_status=failed;;
-            *) msgBox "$borg_title: error" "Unexpected error."
-               remote_status=failed;;
-         esac
+         ssh -p $borg_port -i $borg_id_file $borg_user@$borg_host "test -w $borg_directory"
+         if [ $? != 0 ]; then
+            msgBox "destination directory is not writable!" "The remote destination directory is not writable by the user you specified. Please fix the permissions on the directory and then try again."
+            remote_status=failed
+         else
+            result=0
+         fi
+      else
+         booleanBox "Remote directory does not exist" "The destination backup directory does not exist, do you want me to create it for you?"
+         if [ $? = 0 ]; then
+            ssh -p $borg_port -i $borg_id_file $borg_user@$borg_host "mkdir -p ${borg_directory}"
+            result=$?
+         fi
       fi
    fi
+
+   if [ "$borg_protocol" == "sftp" ]; then
+     if [ ! -e "$SHARED_CON_TMPFILE" ]; then
+         ssh  -p ${borg_port} -f -N -M -o "ControlMaster=auto" -o "ControlPath=${SHARED_CON_TMPFILE}" ${borg_user}@${borg_host}
+         trap "ssh -o "ControlMaster=auto" -o "ControlPath=${SHARED_CON_TMPFILE}" -O exit ${borg_user}@${borg_host}" EXIT
+     fi
+       echo "ls $borg_directory" | sftp -b - -o "ControlMaster=auto" -o "ControlPath=${SHARED_CON_TMPFILE}" ${borg_user}@${borg_host}
+       if [ $? -eq 0 ]; then
+           touch /tmp/foo.bar
+           output=$(echo "put /tmp/foo.bar ${borg_directory}" | sftp -o "ControlMaster=auto" -o "ControlPath=${SHARED_CON_TMPFILE}" ${borg_user}@${borg_host})
+           if [ $? -eq 0 ]; then
+              echo "${output}" | grep -E "remote open.+Permission denied"
+                 if [ $? -eq 0 ]; then
+                      msgBox "destination directory is not writable!" "The remote destination directory is not writable by the user you specified. Please fix the permissions on the directory and then try again."
+                      result=1
+                 else
+                    result=0
+                 fi
+           else
+             msgBox "The sftp connection couldn't be established."
+             result=255
+           fi
+           echo "rm ${borg_directory}/foo.bar" | sftp -o "ControlMaster=auto" -o "ControlPath=${SHARED_CON_TMPFILE}" ${borg_user}@${borg_host}
+       else
+         booleanBox "Remote directory does not exist" "The destination backup directory does not exist, do you want me to create it for you?"
+         if [ $? -eq 0 ]; then
+             echo "exit" | sftp -b - -o "ControlMaster=auto" -o "ControlPath=${SHARED_CON_TMPFILE}" ${borg_user}@${borg_host}
+             if [ $? -eq 255 ]; then
+                 result=255
+             else
+               echo "mkdir ${borg_directory}" | sftp -b - -o "ControlMaster=auto" -o "ControlPath=${SHARED_CON_TMPFILE}" ${borg_user}@${borg_host}
+               if [ $? -eq 0 ]; then
+                 result=0
+               else
+                 output=$(echo "mkdir ${borg_directory}" | sftp -b - -o "ControlMaster=auto" -o "ControlPath=${SHARED_CON_TMPFILE}" ${borg_user}@${borg_host})
+                   if echo "$output" | grep "remote open.+Permission denied" ; then
+                     result=1
+                   fi
+                   # if the directory already exists SFTP returns "Couldn't create directory: Failure"
+                   if echo "$output" | grep "Couldn't create directory" ; then
+                     result=0
+                   else
+                     result=999999
+                   fi
+               fi
+             fi
+         fi
+       fi
+   fi
+
+   case $result in
+             0) msgBox "$borg_title: success" "Directory already exists or was successfully created!";;
+             1) msgBox "$borg_title: error" "Connected successfully to $borg_user@$borg_host, but was unable to create the destination directory, check the directory permissions."
+               remote_status=failed;;
+             255) msgBox "$borg_title: error" "Failed to connect to $borg_user@$borg_host. Check hostname, username, and password. Also, make sure sshd is running on the destination host."
+               remote_status=failed;;
+             *) msgBox "$borg_title: error" "Unexpected error."
+               remote_status=failed;;
+   esac
 
    [ "$remote_status" = "ok" ] || return 1
 }
