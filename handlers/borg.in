@@ -39,13 +39,14 @@ getconf user
 getconf host
 getconf port 22
 getconf directory
+getconf id_file /root/.ssh/id_rsa
 # strip trailing /
 directory=${directory%/}
 getconf archive {now:%Y-%m-%dT%H:%M:%S}
 getconf compression lz4
 getconf encryption none
 getconf passphrase
-
+export BORG_RSH="ssh -i $id_file"
 export BORG_PASSPHRASE="$passphrase"
 
 ### CHECK CONFIG ###
@@ -76,8 +77,8 @@ fi
 # check the connection at the source and destination
 [ -n "$test" ] || test=0
 if [ "$host" != "localhost" ] && ([ "$testconnect" = "yes" ] || [ "${test}" -eq 1 ]); then
-   debug "ssh -o PasswordAuthentication=no $host -p $port -l $user 'echo -n 1'"
-   local ret=$(ssh -o PasswordAuthentication=no $host -p $port -l $user 'echo -n 1')
+   debug "ssh -o PasswordAuthentication=no -i $id_file $host -p $port -l $user 'echo -n 1'"
+   local ret=$(ssh -o PasswordAuthentication=no -i $id_file $host -p $port -l $user 'echo -n 1')
    if [ "$ret" = 1 ]; then
       debug "Connected to $host as $user successfully"
    else
@@ -183,5 +184,6 @@ if [ "$prune" == "yes" ]; then
 fi
 
 unset BORG_PASSPHRASE
+unset BORG_RSH
 
 return 0
