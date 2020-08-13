@@ -84,7 +84,8 @@ if [ "$host" != "localhost" ] && ([ "$testconnect" = "yes" ] || [ "${test}" -eq 
       teststr="borg list --show-rc -v $execstr_repository"
       debug "$teststr"
       output=$(su -c "$teststr" 2>&1)
-      if echo "$output" | grep "terminating with success status" ; then
+      # returns "not a valid repository" if folder exists but isn't initialized as repository
+      if echo "$output" | grep "terminating with success status" || echo "$output" | grep "is not a valid repository" ; then
          debug "Connected to $host as $user successfully (forced command)"
       else
          if echo "$output" | grep -E "Repository.+does not exist" ; then
