@@ -373,7 +373,7 @@ borg_wizard() {
    _enc_done=
    _con_done=
 
-   borg_directory=/backup/`hostname`
+   borg_directory=/backup/$(hostname)
    borg_user=root
    borg_host=localhost
    borg_port=22
