@@ -1,0 +1,54 @@
+#!/bin/bash
+
+# TODO: maybe a switch for catching the different errors off the checks
+# TODO: execute only if all tests are passed
+
+getsection databases
+getconf db_includes
+getconf db_excludes phpmyadmin information_schema mysql
+
+setsection storage
+getconf directory
+
+# test if the directory exists
+if [ ! -d "$directory" ]; then
+    # and create it if needed
+    mkdir -p $directory 2>/dev/null
+    if [ $? -ne 0 ]; then
+        echo "FAILURE: Couldn't create directory. Check the permissions..."
+    fi
+fi
+
+# test if mariabackup is installed
+echo "checking installation of mariabackup..."
+which mariabackup 1>/dev/null
+if [ $? -ne 0 ]; then
+    echo "ERROR: Couldn't find a installation of mariabackup. Verify mariabackup is installed..."
+fi
+
+# check if mysqld is alive
+mysqladmin ping 1>/dev/null
+if [ $? -ne 0 ]; then
+	echo "ERROR: mysqld seems to be dead..."
+fi
+
+# test the connection to the server
+echo "status;" | mysql
+if [ $? -eq 0 ]; then
+    echo "SUCCESS: connection to the mysql server could be established."
+else
+    echo "ERROR: couldn't establish a connection to the mysql server for the user 'root'."
+fi
+
+## do the backup
+echo "Starting full backup of databases to ${directory}"
+mariabackup --backup \
+	--target-dir=$directory \
+	--user=root \
+	--databases=$db_includes \
+	--databases-excludes=$db_excludes
+
+if [ $? -ne 0 ]; then
+	exit_code=$?
+	echo "FAILURE: something went wrong... exiting with ${exit_code}"
+fi
