@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 
 # TODO: maybe a switch for catching the different errors off the checks
 # TODO: execute only if all tests are passed
