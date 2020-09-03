@@ -19,6 +19,10 @@ if [ ! -d "$directory" ]; then
     fi
 fi
 
+# clear the target directory because mariabackup fails if an old backup already exists
+echo "Clearing out '${directory}'..."
+rm -rf ${directory}/*
+
 # test if mariabackup is installed
 echo "checking installation of mariabackup..."
 which mariabackup 1>/dev/null
