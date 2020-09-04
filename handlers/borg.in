@@ -32,6 +32,7 @@ getconf prune yes
 getconf keep 30d
 getconf prune_options
 getconf cache_directory
+getconf init_options
 
 setsection dest
 getconf user
@@ -98,7 +99,7 @@ fi
 ### INIT IF NEEDED ###
 
 if [ "$init" == "yes" ]; then
-   initstr="borg init --encryption=$encryption $execstr_repository"
+   initstr="borg init --encryption=$encryption $init_options $execstr_repository"
    debug "$initstr"
    if [ $test = 0 ]; then
       output="$(su -c "$initstr" 2>&1)"

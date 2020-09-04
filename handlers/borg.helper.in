@@ -284,6 +284,13 @@ do_borg_prune() {
    fi
 
   _prune_done="(DONE)"
+   setDefault init
+}
+
+do_borg_init_options() {
+   inputBox "$borg_title" "Specify custom options for the repository initialization:"
+   [ $? -eq 1 ] && return
+   borg_init_options=$REPLY
    setDefault finish
 }
 
@@ -314,6 +321,7 @@ EOF
 ## for more info see : borg prune -h
 prune = $borg_prune
 keep = "${borg_keep}d"
+init_options = $borg_init_options
 
 [dest]
 directory = $borg_directory
@@ -336,12 +344,14 @@ borg_main_menu() {
       conitem="test connection and destination dir $_con_done"
       encitem="configure encryption mode $_enc_done"
       pruneitem="configure pruning (optional) $_prune_done"
+      inititem="add custom repository'init_options' (optional) $_init_options_done"
       menuBox "$borg_title" "choose a step:" \
          src "$srcitem" \
          dest "$destitem" \
          conn "$conitem" \
          enc "$encitem" \
          prune "$pruneitem" \
+         init "$inititem" \
          finish "finish and create config file"
       [ $? = 0 ] || return
       result="$REPLY"
@@ -351,6 +361,7 @@ borg_main_menu() {
          "conn") do_borg_con;;
          "enc") do_borg_enc;;
          "prune") do_borg_prune;;
+         "init") do_borg_init_options;;
          "finish")
             if [[ "$_con_done$_dest_done$_enc_done$_src_done" != "(DONE)(DONE)(DONE)(DONE)" ]]; then
                msgBox "$borg_title" "You cannot create the configuration file until mandatory steps are completed."
@@ -382,6 +393,7 @@ borg_wizard() {
    borg_encryption=none
    borg_passphrase=
    borg_keep=30
+   borg_init_options=
 
    # Global variables whose '*' shall not be expanded
    set -o noglob
