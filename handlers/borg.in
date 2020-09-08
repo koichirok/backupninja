@@ -140,7 +140,7 @@ if [ ! -z $bwlimit ]; then
    execstr="${execstr} --remote-ratelimit=${bwlimit}"
 fi
 
-if [ ! -z $create_options ]; then
+if [ ! -z "$create_options" ]; then
    execstr="${execstr} ${create_options}"
 fi
 
