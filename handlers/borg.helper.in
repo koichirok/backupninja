@@ -242,7 +242,7 @@ do_borg_ssh_con() {
       else
          echo "Copying root's public ssh key with sftp to authorized_keys of $borg_user@$borg_host. When prompted, specify the password for user $borg_user@$borg_host."
          ssh  -p ${borg_port} -f -N -M -o "ControlMaster=auto" -o "ControlPath=${SHARED_CON_TMPFILE}" ${borg_user}@${borg_host}
-         trap "ssh -o "ControlMaster=auto" -o "ControlPath=${SHARED_CON_TMPFILE}" -O exit ${borg_user}@${borg_host}" EXIT
+         trap "ssh -o 'ControlMaster=auto' -o 'ControlPath=${SHARED_CON_TMPFILE}' -O exit ${borg_user}@${borg_host}" EXIT
 
          echo "mkdir .ssh" | sftp -o "ControlMaster=auto" -o "ControlPath=${SHARED_CON_TMPFILE}" ${borg_user}@${borg_host}
          echo "chmod 600 .ssh" | sftp -o "ControlMaster=auto" -o "ControlPath=${SHARED_CON_TMPFILE}" ${borg_user}@${borg_host}
@@ -284,7 +284,7 @@ do_borg_ssh_con() {
    if [ "$borg_protocol" == "sftp" ]; then
      if [ ! -e "$SHARED_CON_TMPFILE" ]; then
          ssh  -p ${borg_port} -f -N -M -o "ControlMaster=auto" -o "ControlPath=${SHARED_CON_TMPFILE}" ${borg_user}@${borg_host}
-         trap "ssh -o "ControlMaster=auto" -o "ControlPath=${SHARED_CON_TMPFILE}" -O exit ${borg_user}@${borg_host}" EXIT
+         trap "ssh -o 'ControlMaster=auto' -o 'ControlPath=${SHARED_CON_TMPFILE}' -O exit ${borg_user}@${borg_host}" EXIT
      fi
        echo "ls $borg_directory" | sftp -b - -o "ControlMaster=auto" -o "ControlPath=${SHARED_CON_TMPFILE}" ${borg_user}@${borg_host}
        if [ $? -eq 0 ]; then
