@@ -1,4 +1,3 @@
-#!/bin/bash
 
 HELPERS="$HELPERS mariabackupfull:full_db_backups"
 
