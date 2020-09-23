@@ -91,7 +91,7 @@ db_exclude = $mariabackup_databases_excludes
 directory = $mariabackup_directory
 EOF
 
-chmod 700 $next_filename
+   chmod 600 $next_filename
 }
 
 mariabackup_main_menu() {
