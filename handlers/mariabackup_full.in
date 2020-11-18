@@ -1,0 +1,119 @@
+# TODO: maybe a switch for catching the different errors off the checks
+# TODO: execute only if all tests are passed
+
+set -e
+setsection databases
+getconf db_includes
+getconf db_excludes
+
+setsection storage
+getconf directory
+
+# test if the directory exists
+if [ ! -d "$directory" ]; then
+    # and create it if needed
+    mkdir -p $directory 2>/dev/null
+    if [ $? -ne 0 ]; then
+        echo "FAILURE: Couldn't create directory. Check the permissions..."
+    fi
+fi
+
+# clear the target directory because mariabackup fails if an old backup already exists
+echo "Clearing out '${directory}'..."
+rm -rf ${directory}/*
+
+# test if mariabackup is installed
+echo "checking installation of mariabackup..."
+mariabackup_binary=$(which mariabackup)
+if [ $? -ne 0 ]; then
+    echo "ERROR: Couldn't find a installation of mariabackup. Verify mariabackup is installed..."
+fi
+
+# check if mysqld is alive
+mysqladmin ping 1>/dev/null
+if [ $? -ne 0 ]; then
+   echo "ERROR: mysqld seems to be dead..."
+fi
+
+# test the connection to the server
+echo "status;" | mysql
+if [ $? -eq 0 ]; then
+    echo "SUCCESS: connection to the mysql server could be established."
+else
+    echo "ERROR: couldn't establish a connection to the mysql server for the user 'root'."
+fi
+
+# base of the command string
+exec="${mariabackup_binary} --backup --user=root --target-dir=${directory}"
+
+# check if db_includes is set and add it to the command string if so
+if [ ! -z "$db_includes" ]; then
+   exec="${exec} --databases=${db_includes}"
+fi
+
+# check if db_excludes is set and add it to the command string if so
+if [ ! -z "$db_excludes" ]; then
+   exec="${exec} --databases-exclude=${db_excludes}"
+fi
+
+# do the backup
+echo "Starting full backup of databases to ${directory}"
+
+# run the in previous conditional checks built command string
+eval $exec
+
+if [ $? -ne 0 ]; then
+   exit_code=$?
+   echo "FAILURE: something went wrong... exiting with ${exit_code}"
+fi
+
+# check for a full backup
+if [ -z "$db_includes" -a -z "$db_excludes" ]; then
+   exit 0
+fi
+
+## preparation for a restore ##
+
+# to make a partial restore possible without creating all databases and tables manually
+# a mysqldump of the structure is made
+
+# make a directory for the structure dumps of the databases included in the backup
+mkdir "${directory}/structure-dumps/"
+
+# get a list of all databases and remove "Database"
+databases=$(echo "SHOW DATABASES;" | mysql)
+databases="${databases#'Database'}"
+
+# strip the first and last quotes from includes & excludes
+db_includes=${db_includes#\"}
+db_includes=${db_includes%\"}
+db_excludes=${db_excludes#\"}
+db_excludes=${db_excludes%\"}
+
+
+# iterate over the list of databases for excludes set
+for database in $databases; do
+
+   if [ ! -z "$db_excludes" ]; then
+      # skip the databases that are part of the excludes
+      if [[ " $db_excludes " =~  .*\ $database\ .* ]];then
+         echo "Skipping excluded ${database}"
+         continue
+      fi
+    fi
+
+   if [ ! -z "$db_includes" ]; then
+       if [[ ! " $db_includes " =~  .*\ $database\ .* ]];then
+          echo "Skipping not included $database"
+          continue
+       fi
+   fi
+
+   # make a structure dump per databases so the restore of a single database
+   # out of a full backup is possible
+   target_file=${directory}/structure-dumps/${database}.sql
+   echo "Making structure dump of ${database}"
+   mysqldump --no-data $database > $target_file || echo "ERROR: failed to make a structure dump of ${database}"
+   echo "SUCCESS: making a structure dump of ${database}"
+done
+

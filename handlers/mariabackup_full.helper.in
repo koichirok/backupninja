@@ -1,0 +1,119 @@
+
+HELPERS="$HELPERS mariabackupfull:full_db_backups"
+
+# TODO:
+# - make a test connect to the sql server?
+# - set defaults for some variables
+# - connection test at creating the user?
+# - socket auth
+# - backup tables (-> include & exclude)
+# - specify different users (what to do with the credentials like pwd?)
+# - remote server?
+
+# OPTIONS: (==> as features!)
+# - incremental
+# - encryption
+# - compression with stream over stdout
+
+do_mariabackup_databases_includes() {
+	# choose which databases to backup
+	REPLY=
+	while [ -z "$REPLY" ]; do
+		inputBox "$mariabackup_title" "Choose which databases to include from the backup:"
+		[ $? -eq 0 ] || return
+		mariabackup_databases_includes=$REPLY
+	done
+  _db_includes_done="(DONE)"
+	setDefault storage
+}
+
+do_mariabackup_databases_excludes() {
+	# choose which databases to exclude from the backup
+	REPLY=
+	while [ -z "$REPLY"  ]; do
+		inputBox "$mariabackup_title" "Choose which databases to exclude from the backup:"
+		[ $? -eq 0 ] || return 1
+		mariabackup_databases_excludes=$REPLY
+	done
+	setDefault storage
+	_db_excludes_done="(DONE)"
+}
+
+do_mariabackup_storage() {
+	inputBox "$mariabackup_title" "define where to store backups"
+	[ $? = 0 ] || return
+	mariabackup_directory="$REPLY"
+	_storage_done="(DONE)"
+	setDefault finish
+}
+
+do_mariabackup_finish() {
+	get_next_filename $configdirectory/120.mariabackup_full
+	cat >$next_filename <<EOF
+### backupninja Mariabackup config file ###
+[databases]
+db_includes = "${mariabackup_databases_includes}"
+db_excludes = "${mariabackup_databases_excludes}"
+
+[storage]
+directory = $mariabackup_directory
+EOF
+
+   chmod 600 $next_filename
+}
+
+mariabackup_main_menu() {
+	while true; do
+
+		menuDbIncludes="choose which databases to include"
+		menuDbExcludes="choose which databases to include"
+		menuStorageDir="backup storage directory $_storage_done"
+
+		menuBox "$mariabackup_title" "choose a step:" \
+			db_includes "$menuDbIncludes" \
+			db_excludes "$menuDbExcludes" \
+			storage "$menuStorageDir" \
+			finish "Finish up and create Config"
+
+		[ $? = 0 ] || return
+		result="$REPLY"
+		case "$result" in
+
+		"db_includes")
+		 if [ -z "$_db_excludes_done" ]; then
+		    do_mariabackup_databases_includes
+		 else
+		   msgBox "$mariabackup_title" "You can either create includes OR excludes"
+		 fi
+		 ;;
+
+    "db_excludes")
+		 if [ -z "$_db_includes_done" ]; then
+		    do_mariabackup_databases_excludes
+		 else
+		   msgBox "$mariabackup_title" "You can either create includes OR excludes"
+		 fi
+		 ;;
+
+		"storage") do_mariabackup_storage ;;
+		"finish")
+			if [[ "$_storage_done" != "(DONE)" ]]; then
+				msgBox "$mariabackup_title" "You cannot create the configuration file until mandatory steps are completed."
+			else
+				do_mariabackup_finish
+				return
+			fi
+			;;
+		esac
+	done
+}
+
+mariabackupfull_wizard() {
+
+	mariabackup_title="mariabackup action wizard"
+
+	_storage_done=
+	mariabackup_databases_includes=
+	mariabackup_databases_excludes=
+	mariabackup_main_menu
+}
