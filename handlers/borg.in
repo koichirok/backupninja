@@ -38,13 +38,14 @@ getconf user
 getconf host
 getconf port 22
 getconf directory
+getconf id_file /root/.ssh/id_rsa
 # strip trailing /
 directory=${directory%/}
 getconf archive {now:%Y-%m-%dT%H:%M:%S}
 getconf compression lz4
 getconf encryption none
 getconf passphrase
-
+export BORG_RSH="ssh -i $id_file"
 export BORG_PASSPHRASE="$passphrase"
 
 ### CHECK CONFIG ###
@@ -75,15 +76,16 @@ fi
 # check the connection at the source and destination
 [ -n "$test" ] || test=0
 if [ "$host" != "localhost" ] && ([ "$testconnect" = "yes" ] || [ "${test}" -eq 1 ]); then
-   debug "ssh -o PasswordAuthentication=no $host -p $port -l $user 'echo -n 1'"
-   local ret=`ssh -o PasswordAuthentication=no $host -p $port -l $user 'echo -n 1'`
+   debug "ssh -o PasswordAuthentication=no -i $id_file $host -p $port -l $user 'echo -n 1'"
+   local ret=$(ssh -o PasswordAuthentication=no -i $id_file $host -p $port -l $user 'echo -n 1')
    if [ "$ret" = 1 ]; then
       debug "Connected to $host as $user successfully"
    else
       teststr="borg list --show-rc -v $execstr_repository"
       debug "$teststr"
-      output=`su -c "$teststr" 2>&1`
-      if echo "$output" | grep "terminating with success status" ; then
+      output=$(su -c "$teststr" 2>&1)
+      # returns "not a valid repository" if folder exists but isn't initialized as repository
+      if echo "$output" | grep "terminating with success status" || echo "$output" | grep "is not a valid repository" ; then
          debug "Connected to $host as $user successfully (forced command)"
       else
          if echo "$output" | grep -E "Repository.+does not exist" ; then
@@ -101,7 +103,7 @@ if [ "$init" == "yes" ]; then
    initstr="borg init --encryption=$encryption $execstr_repository"
    debug "$initstr"
    if [ $test = 0 ]; then
-      output="`su -c "$initstr" 2>&1`"
+      output="$(su -c "$initstr" 2>&1)"
       if [ $? = 2 ]; then
          debug $output
          info "Repository was already initialized"
@@ -149,7 +151,7 @@ execstr="${execstr} ${excludes} $execstr_repository::$execstr_archive ${includes
 debug "$execstr"
 
 if [ $test = 0 ]; then
-   output=`nice -n $nicelevel su -c "$execstr" 2>&1`
+   output=$(nice -n $nicelevel su -c "$execstr" 2>&1)
    if [ $? = 0 ]; then
       debug $output
       info "Successfully finished backing up source $label"
@@ -169,7 +171,7 @@ if [ "$prune" == "yes" ]; then
    prunestr="borg prune $prune_options $execstr_repository"
    debug "$prunestr"
    if [ $test = 0 ]; then
-      output="`su -c "$prunestr" 2>&1`"
+      output="$(su -c "$prunestr" 2>&1)"
       if [ $? = 0 ]; then
          debug $output
          info "Removing old backups succeeded."
@@ -181,5 +183,6 @@ if [ "$prune" == "yes" ]; then
 fi
 
 unset BORG_PASSPHRASE
+unset BORG_RSH
 
 return 0
