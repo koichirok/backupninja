@@ -4,7 +4,7 @@
 EXTRA_DIST = FAQ.md README.md COPYING AUTHORS INSTALL.md NEWS ChangeLog \
              backupninja.spec backupninja.spec.in autogen.sh
 
-SUBDIRS = etc examples handlers lib man src
+SUBDIRS = etc systemd examples handlers lib man src
 
 local_rpm_topdir=`cd $(top_srcdir) && pwd`/rpm
 rpm-package: dist

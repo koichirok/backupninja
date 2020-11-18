@@ -3,4 +3,4 @@
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 
 # run backupninja every hour on the hour
-0 * * * * root if [ -x @sbindir@/backupninja ]; then @sbindir@/backupninja; fi
+0 * * * * root test -x @sbindir@/backupninja -a \! -d /run/systemd/system && @sbindir@/backupninja
