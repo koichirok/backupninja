@@ -1,0 +1,25 @@
+# nap.handler for processing the .nap files to freeze the processing of configurations
+# in the configuration directory of backupninja temporary.
+
+getconf nap_static_random_delay
+getconf nap_interval_min
+getconf nap_interval_max
+
+# check for static random delay
+if [ $nap_static_random_delay == "false" ]; then
+
+   # use perl rand if static random is set false
+   delay=$(perl -e "print int($nap_interval_min + rand($nap_interval_max - $nap_interval_min))")
+
+else
+
+   # seed rand with machine-id, the substring 0,8 is needed so the integer value does not
+   # overflows the max integer value of perl on a 32 bit system. With this method entropy isn't
+   # a problem
+   delay=$(cat /etc/machine-id | perl -e "srand(hex(substr(<STDIN>,0,8))); \
+      print int($nap_interval_min + rand($nap_interval_max - $nap_interval_min))")
+
+fi
+
+echo "Holding processing of configurations for $delay seconds..."
+perl -e "sleep $delay"

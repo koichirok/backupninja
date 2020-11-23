@@ -1,10 +1,10 @@
 
 HANDLERS = borg borg.helper dup dup.helper maildir makecd	\
-         makecd.helper mysql mysql.helper pgsql pgsql.helper rdiff	\
+         makecd.helper mysql mysql.helper nap nap.helper pgsql pgsql.helper rdiff	\
          rdiff.helper rsync sh svn sys sys.helper trac tar tar.helper
 
 DIST_HANDLERS = borg.in borg.helper.in dup.in dup.helper.in maildir.in makecd.in	\
-         makecd.helper.in mysql.in mysql.helper.in pgsql.in pgsql.helper.in rdiff.in	\
+         makecd.helper.in mysql.in mysql.helper.in nap.in nap.helper.in pgsql.in pgsql.helper.in rdiff.in	\
          rdiff.helper.in rsync.in sh.in svn.in sys.in sys.helper.in trac.in tar.in tar.helper.in wget
 
 CLEANFILES = $(HANDLERS)
@@ -61,6 +61,14 @@ mysql: $(srcdir)/mysql.in
 mysql.helper: $(srcdir)/mysql.helper.in
 	rm -f mysql.helper
 	$(edit) $(srcdir)/mysql.helper.in > mysql.helper
+
+nap: $(srcdir)/nap.in
+	rm -f nap
+	$(edit) $(srcdir)/nap.in > nap
+
+nap.helper: $(srcdir)/nap.helper.in
+	rm -f nap.helper
+	$(edit) $(srcdir)/nap.helper.in > nap.helper
 
 pgsql: $(srcdir)/pgsql.in
 	rm -f pgsql

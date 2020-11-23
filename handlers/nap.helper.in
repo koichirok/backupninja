@@ -1,0 +1,101 @@
+# nap.helper creates a configuration file to offer the possibility
+# to add a delay in form of a sleep before the start of the backup
+# process itself
+
+HELPERS="$HELPERS nap:randomized_delay_of_backups"
+
+do_nap_static_random_delay() {
+
+   # set a boolean value to enable a static random delay seeded with the machine-id in /etc/machine-id.
+   radioBox "$nap_title" "enable the static random delay. For more information check the doc's..." \
+      "true" "enable the static random delay" off \
+      "false" "default" on
+   [ $? -eq 1 ] && return
+   nap_static_random_delay=$REPLY
+   setDefault interval_min
+}
+
+
+do_nap_interval_min() {
+
+   msg="Specify a lower limit for the time span of the delay in seconds:"
+   # set the minimum delay for the interval
+   inputBox "$nap_title" "${msg}"
+   [ $? -eq 0 ] || return
+   nap_interval_min=$REPLY
+   _interval_min_done="(DONE)"
+   setDefault interval_max
+}
+
+do_nap_interval_max() {
+
+   msg="Specify a upper limit for the time span of the delay in seconds:"
+   # set the maximum delay for the interval
+   inputBox "$nap_title" "${msg}"
+   [ $? -eq 0 ] || return
+   nap_interval_max=$REPLY
+   _interval_max_done="(DONE)"
+   setDefault finish
+}
+
+do_nap_finish() {
+
+   # Uses the prefix 0.nap because it has to be the first file processed by the corresponding handler
+   # that the randomized delay becomes useful.
+
+   get_next_filename $configdirectory/1.nap
+   cat > $next_filename <<EOF
+### configuration file for nap.handler ###
+# This holds back the processing of configuration files in this directory
+# for a randomized and configurable time span
+
+nap_static_random_delay = $nap_static_random_delay
+nap_interval_min = $nap_interval_min
+nap_interval_max = $nap_interval_max
+EOF
+   chmod 600 $next_filename
+}
+
+nap_main_menu() {
+   while true; do
+      static_random_delay="enable the static random delay"
+      interval_min="specify the minimum delay for the interval $_interval_min_done"
+      interval_max="specify the maximum delay for the interval $_interval_max_done"
+      menuBox "$nap_title" "choose a step:" \
+         static "$static_random_delay" \
+         interval_min "$interval_min" \
+         interval_max "$interval_max" \
+         finish "finish and create configuration file"
+      [ $? -eq 0 ] || return
+         case "$REPLY" in
+            "static") do_nap_static_random_delay;;
+            "interval_min") do_nap_interval_min;;
+            "interval_max") do_nap_interval_max;;
+            "finish")
+               if [[ "$_interval_min_done$_interval_max_done" != "(DONE)(DONE)" ]]; then
+                  msgBox "$nap_title" "You cannot create the configuration file until mandatory steps are completed."
+               else
+                  do_nap_finish
+                  return
+               fi
+               ;;
+         esac
+   done
+}
+
+nap_wizard() {
+
+   # global variables
+   nap_title="random delay on backup process wizard"
+
+   _interval_min_done=
+   _interval_max_done=
+
+
+   # define some defaults for the configurations
+   nap_static_random_delay=true
+   nap_interval_min=
+   nap_interval_max=
+
+   nap_main_menu
+}
