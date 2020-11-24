@@ -1,11 +1,11 @@
 
 HANDLERS = borg borg.helper dup dup.helper maildir makecd	\
-         makecd.helper mysql mysql.helper	\
+         makecd.helper mariabackup_full mariabackup_full.helper mysql mysql.helper	\
          nap nap.helper pgsql pgsql.helper rdiff	\
          rdiff.helper rsync sh svn sys sys.helper trac tar tar.helper
 
 DIST_HANDLERS = borg.in borg.helper.in dup.in dup.helper.in maildir.in makecd.in	\
-         makecd.helper.in mysql.in mysql.helper.in	\
+         makecd.helper.in mariabackup_full.in mariabackup_full.helper.in mysql.in mysql.helper.in	\
          nap.in nap.helper.in pgsql.in pgsql.helper.in rdiff.in	\
          rdiff.helper.in rsync.in sh.in svn.in sys.in sys.helper.in trac.in tar.in tar.helper.in wget
 
@@ -16,7 +16,7 @@ EXTRA_DIST = Makefile.am $(DIST_HANDLERS)
 edit = sed \
     -e "s,@BASH\@,$(BASH),g" \
     -e "s,@AWK\@,$(AWK),g" \
-    -e "s,@SED\@,$(SED),g"
+    -e "s,@SED\@,$(SED),g" 
 
 pkgdata_DATA = $(HANDLERS)
 
@@ -55,6 +55,14 @@ makecd: $(srcdir)/makecd.in
 makecd.helper: $(srcdir)/makecd.helper.in
 	rm -f makecd.helper
 	$(edit) $(srcdir)/makecd.helper.in > makecd.helper
+
+mariabackup_full: $(srcdir)/mariabackup_full.in
+	rm -f mariabackup_full
+	$(edit) $(srcdir)/mariabackup_full.in > mariabackup_full
+
+mariabackup_full.helper: $(srcdir)/mariabackup_full.helper.in
+	rm -f mariabackup_full.helper
+	$(edit) $(srcdir)/mariabackup_full.helper.in > mariabackup_full.helper
 
 mysql: $(srcdir)/mysql.in
 	rm -f mysql
