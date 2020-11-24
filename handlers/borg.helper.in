@@ -8,7 +8,6 @@
 # the Free Software Foundation; either version 2 of the License, or
 # (at your option) any later version.
 #
-
 HELPERS="$HELPERS borg:deduplicated_archive_based_backup"
 
 declare -a borg_includes
@@ -232,6 +231,27 @@ do_borg_ssh_con() {
 
    if [ "$borg_protocol" = "sftp" ]; then
 
+      # initial creation of a temporary directory and variables for the authorized_keys and the
+      # master ssh conection
+      SCRATCH_DIR=$(mktemp --dry-run borg-helper-temp.XXXXXXXXXX)
+      if test $? -ne 0 || test "x$SCRATCH_DIR" = "x" ; then
+         printf "%s ERROR: mktemp failed\n" >&2
+         exit 1
+      fi
+      mkdir $SCRATCH_DIR
+      chmod 700 $SCRATCH_DIR
+      if [ -d "$SCRATCH_DIR" ]; then
+         SCRATCH_CLEANUP="rm -rf \"$SCRATCH_DIR\""
+         trap "$SCRATCH_CLEANUP" EXIT TERM INT QUIT
+      else
+         printf '%s: ERROR: Required scratch directory (%s) was not created\n' "$SCRATCH_DIR" >&2
+         exit 1
+      fi
+
+      # path to the temporary files for the ssh socket and the authorized key file of the remote machine
+      KEYS_TEMPFILE=$SCRATCH_DIR/authorized_keys
+      SHARED_CONN=$SCRATCH_DIR/master-conn
+
       # test if the public key is already in the remote server's authorized_keys
       echo "exit" | sftp -P $borg_port -o "PasswordAuthentication=no" -o "IdentityFile=${borg_id_file}" $borg_user@$borg_host
       if [ $? -eq 0 ]; then
@@ -239,24 +259,6 @@ do_borg_ssh_con() {
          echo "Done. Hit return to continue."
          read
       else
-         # create a temporary directory for the authorized_keys and the master ssh conection
-         SCRATCH_DIR=$(mktemp --dry-run borg-helper-temp.XXXXXXXXXX)
-         if test $? -ne 0 || test "x$SCRATCH_DIR" = "x" ; then
-            printf "%s ERROR: mktemp failed\n" >&2
-            exit 1
-         fi
-         chmod 700 $SCRATCH_DIR
-         if [ -d "$SCRATCH_DIR" ]; then
-            SCRATCH_CLEANUP="rm -rf \"$SCRATCH_DIR\""
-            trap "$SCRATCH_CLEANUP" EXIT TERM INT QUIT
-         else
-            printf '%s: ERROR: Required scratch directory (%s) was not created\n' "$SCRATCH_DIR" >&2
-            exit 1
-         fi
-
-         # path to the temporary files for the ssh socket and the authorized key file of the remote machine
-         KEYS_TEMPFILE=$SCRATCH_DIR/authorized_keys
-         SHARED_CONN=$SCRATCH_DIR/master-conn
 
          # open a ssh tunnel to pipe sftp traffic through and prepare cleaning up
          ssh -p ${borg_port} -f -N -M -o ControlMaster=auto -S ${SHARED_CONN} ${borg_user}@${borg_host}
@@ -264,15 +266,15 @@ do_borg_ssh_con() {
          trap "$CLEANUP" EXIT TERM INT QUIT
 
          # use sftp with -b - to get the cmd's to execute on the remote machine via stdin
-         sftp -b - -o "ControlPath=${SHARED_CONN}" "ignored" <<-EOF || return 1
+         sftp -b - -o "ControlPath=${SHARED_CONN}" "ignored" <<-EOF
             -get .ssh/authorized_keys $KEYS_TEMPFILE
 EOF
          # add a newline or create file if it's missing
          [ -z "$(tail -1c $KEYS_TEMPFILE 2>/dev/null)" ] || echo >> $KEYS_TEMPFILE
          # append the keys being piped in here
-         cat >> $KEYS_TEMPFILE
+         cat "${borg_id_file}.pub" >> $KEYS_TEMPFILE
          sftp -b - -o "ControlPath=${SHARED_CONN}" "ignored" <<-EOF || return 1
-            -mdkir .ssh
+            -mkdir .ssh
             chmod 700 .ssh
             put $KEYS_TEMPFILE .ssh/authorized_keys
             chmod 600 .ssh/authorized_keys
@@ -308,7 +310,7 @@ EOF
          SSH_CLEANUP="ssh -S ${SHARED_CONN} -o ControlMaster=auto -O exit 'ignored' >/dev/null 2>&1"
          trap "$SSH_CLEANUP" EXIT TERM INT QUIT
      fi
-       echo "ls $borg_directory" | sftp -b - -o "ControlMaster=auto" -S $SHARED_CONN ${borg_user}@${borg_host}
+       echo "ls $borg_directory" | sftp -b - -o "ControlMaster=auto" -o "ControlPath=$SHARED_CONN" ${borg_user}@${borg_host}
        if [ $? -eq 0 ]; then
            touch /tmp/foo.bar
            output=$(echo "put /tmp/foo.bar ${borg_directory}" | sftp -o "ControlMaster=auto" -S $SHARED_CONN ${borg_user}@${borg_host})
@@ -513,9 +515,9 @@ borg_wizard() {
    _enc_done=
    _con_done=
 
-   borg_directory=/backup/$(hostname)
+   borg_directory=/var/backup/borg
    borg_user=root
-   borg_host=localhost
+   borg_host=10.0.1.42
    borg_port=22
    borg_id_file=/root/.ssh/id_rsa
    borg_archive='{now:%Y-%m-%dT%H:%M:%S}'
@@ -527,8 +529,7 @@ borg_wizard() {
 
    # Global variables whose '*' shall not be expanded
    set -o noglob
-   borg_includes=(/var/spool/cron/crontabs /var/backups /etc /root /home /usr/local/*bin)
-   borg_excludes=(/home/*/.gnupg /home/*/.local/share/Trash /home/*/.Trash /home/*/.thumbnails)
+   borg_includes=(/etc)
    set +o noglob
 
    borg_main_menu
