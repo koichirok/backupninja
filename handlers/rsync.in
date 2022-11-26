@@ -1152,7 +1152,12 @@ mount_rw
 starttime="`date +%c%n%s`"
 echo "Starting backup at `echo "$starttime" | head -n 1`" >> $log
 
-for SECTION in $include; do
+SAVEIFS=$IFS
+IFS=$(echo -en "\n\b")
+j=0 ; for dir in $include ; do include_array[${j}]=$dir ; ((j++)) ; done
+IFS=$SAVEIFS
+
+for SECTION in "${include_array[@]}"; do
 
   prepare_storage
   set_orig
