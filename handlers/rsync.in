@@ -324,7 +324,7 @@ function rotate_short {
   fi
 
   # Cleanup orphaned metadata
-  for file in `ls $metadata`; do
+  for file in "$metadata/"*; do
     if [ ! -d "`dirname $folder`/$file" ]; then
       debug "removing orphaned metadata $file"
       rm -rf $metadata/$file
@@ -503,7 +503,7 @@ function rotate_long {
   done
 
   # Cleanup orphaned metadata
-  for file in `ls $backuproot/metadata`; do
+  for file in "$backuproot/metadata/"*; do
     if [ ! -d "$backuproot/$file" ]; then
       debug "removing orphaned metadata $file"
       rm -rf $backuproot/metadata/$file
