@@ -803,7 +803,7 @@ function prepare_storage {
      # create $SECTION directories, but not $backupdir
      if [ "$dest" == "local" ]; then
         if [ -d "$backupdir" ]; then
-           mkdir --parents $backupdir/$SECTION
+           mkdir --parents "$backupdir"/"$SECTION"
         else
            fatal "The destination $backupdir does not exist"
            exit 1
@@ -822,7 +822,7 @@ function prepare_storage {
            fi
            ##### END REMOTE SCRIPT #######
 EOF
-) | (while read a; do passthru $a; done)
+) | (while read a; do passthru "$a"; done)
      fi
 
      suffix=""
