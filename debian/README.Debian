@@ -1,0 +1,13 @@
+Backupninja in Debian
+=====================
+
+1. Scheduling
+-------------
+
+This package installs a cron job which executes backupninja every hour, on the
+hour. To disable this package-managed cron job, a dpkg diversion may be used:
+
+    dpkg-divert --add --rename --divert /etc/cron.d/backupninja.disabled /etc/cron.d/backupninja
+
+With this diversion in place, upgrading or reinstalling the package will not
+re-enable the default cron job.
