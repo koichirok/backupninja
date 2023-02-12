@@ -4,3 +4,4 @@
 non-standard-dir-perm etc/backup.d/ 2770 != 0755
 # The first occurrence is for the handler, the 2nd is for the package
 spelling-error-in-description rsync rsync (duplicate word) rsync
+spelling-error-in-description restic restic (duplicate word) restic
