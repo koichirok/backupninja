@@ -1,3 +1,15 @@
+backupninja (1.2.2-1) unstable; urgency=medium
+
+  Versions of backupninja from 1.2.0-rc1 to 1.2.1 bypassed the user's ssh
+  configuration when connecting to remote hosts using the borg handler, using
+  port 22 as a hard-coded default.
+
+  Beginning with version 1.2.2, this change is reverted, and the ssh
+  configuration takes precedence when the port parameter is undefined in the
+  borg backup action, otherwise the port parameter is used.
+
+ -- Jérôme Charaoui <jerome@riseup.net>  Sun, 12 Feb 2023 15:03:23 -0500
+
 backupninja (1.2.0-1) unstable; urgency=medium
 
   Beginning with version 1.2.0, support for vservers is completely dropped
