@@ -1,4 +1,4 @@
+etc/backup.d
 usr/lib
 usr/sbin
 usr/share/backupninja
-etc/backup.d

@@ -1,14 +1,14 @@
+debian/backupninja/etc/backupninja.conf
 examples/example.borg
 examples/example.dup
 examples/example.maildir
 examples/example.makecd
 examples/example.mysql
 examples/example.pgsql
-examples/example.restic
 examples/example.rdiff
+examples/example.restic
 examples/example.rsync
 examples/example.sh
 examples/example.svn
 examples/example.sys
 examples/example.trac
-debian/backupninja/etc/backupninja.conf

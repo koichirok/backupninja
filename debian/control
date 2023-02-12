@@ -2,11 +2,13 @@ Source: backupninja
 Section: admin
 Priority: optional
 Maintainer: Debian backupninja maintainers <pkg-backupninja@lists.riseup.net>
-Uploaders: Micah Anderson <micah@riseup.net>,
- Jerome Charaoui <jerome@riseup.net>
+Uploaders:
+ Micah Anderson <micah@riseup.net>,
+ Jerome Charaoui <jerome@riseup.net>,
 Build-Depends:
- debhelper-compat (= 13)
-Build-Conflicts: autoconf2.13
+ debhelper-compat (= 13),
+Build-Conflicts:
+ autoconf2.13,
 Standards-Version: 4.6.2
 Homepage: https://0xacab.org/liberate/backupninja
 Vcs-Browser: https://0xacab.org/liberate/backupninja/tree/debian
@@ -15,27 +17,27 @@ Vcs-Git: https://0xacab.org/liberate/backupninja.git
 Package: backupninja
 Architecture: all
 Depends:
- gawk | mawk,
- dialog,
  bash (>=2.05b-26),
- ${misc:Depends}
+ dialog,
+ gawk | mawk,
+ ${misc:Depends},
 Recommends:
- bsd-mailx | mailx | mailutils
+ bsd-mailx | mailx | mailutils,
 Suggests:
+ borgbackup,
  bzip2,
  debconf-utils,
  duplicity,
- genisoimage,
  fdisk | util-linux (<< 2.29.2-3~),
+ genisoimage,
  hwinfo,
  mdadm,
  rdiff-backup,
+ restic,
  rsync,
  subversion,
  trickle,
  wodim,
- borgbackup,
- restic
 Description: lightweight, extensible meta-backup system
  Backupninja lets you drop simple config files in /etc/backup.d to
  coordinate system backups. Backupninja is a master of many arts,
