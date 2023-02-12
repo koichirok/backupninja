@@ -127,6 +127,12 @@ exclude = /var/lib/mysql
 ## Default:
 # ignore_missing =
 
+## Path to the directory that will hold borg's cache files. By default this is
+## empty, which will let borg use its default path of "~/.cache/borg".
+##
+## Default:
+# cache_directory =
+
 ######################################################
 ## destination section
 ## (where the files are copied to)
@@ -200,12 +206,6 @@ exclude = /var/lib/mysql
 ##
 ## Default:
 # passphrase =
-
-## Path to the directory that will hold borg's cache files. By default this is
-## empty, which will let borg use its default path of "~/.cache/borg".
-##
-## Default:
-# cache_directory =
 
 ## command-line options to use with ssh
 ##

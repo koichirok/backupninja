@@ -514,12 +514,6 @@ if [ "$partitions" == "yes" ]; then
          partitions="no"
       fi
    fi
-   if [ "$dohwinfo" == "yes" ]; then
-      if [ ! -x "$HWINFO" ]; then
-         warning "can't find hwinfo, skipping partition report."
-         partitions="no"
-      fi
-   fi
 fi
 
 if [ "$hardware" == "yes" ]; then
@@ -572,7 +566,7 @@ if [ "$partitions" == "yes" ] || [ "$luksheaders" == "yes" ] || [ "$mbr" == "yes
    if [ "$devparts" == "" ]; then
       info "No partitions found on this system."
    else
-      info "$(echo "Partitions found: $partitions" | tr "\n" " ")"
+      info "$(echo "Partitions found: $devparts" | tr "\n" " ")"
    fi
 fi
 
@@ -606,6 +600,9 @@ if [ "$luksheaders" == "yes" ]; then
          label=${dev#/dev/}
          label=${label//\//-}
          outputfile=${luksheadersfile//__star__/$label}
+         if [ -f "${outputfile}" ]; then
+           rm "${outputfile}"
+         fi
          debug "$CRYPTSETUP will try to backup the LUKS header for device $dev"
          debug "$CRYPTSETUP luksHeaderBackup \"${dev}\" --header-backup-file \"${outputfile}\""
          output=`$CRYPTSETUP luksHeaderBackup "${dev}" --header-backup-file "${outputfile}" 2>&1`

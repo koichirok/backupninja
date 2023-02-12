@@ -209,11 +209,6 @@ else
    fi
 fi
 
-### Cleanup options
-if ! version_ge "$duplicity_version" '0.6.20'; then
-   execstr_options="${execstr_options} --extra-clean"
-fi
-
 ### Temporary directory
 if [ -n "$tmpdir" ]; then
    if [ ! -d "$tmpdir" ]; then
@@ -318,7 +313,7 @@ fi
 if [ "$keep" != "yes" ]; then
    debug "executing duplicity remove-older-than"
    debug "$nice $execstr_precmd duplicity remove-older-than $keep --force $execstr_options $execstr_serverpart"
-   if [ ! $test ]; then
+   if [ $test = 0 ]; then
       export PASSPHRASE=$password
       export SIGN_PASSPHRASE=$signpassword
       export FTP_PASSWORD=$ftp_password

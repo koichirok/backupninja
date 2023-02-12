@@ -68,3 +68,5 @@ Glandos <bugs-0xacab@antipoul.fr> -- sys excludes zram devices
 Nicolas Karolak <nicolas@karolak.fr> -- Add restic support
 Derek Laventure -- Add restic helper
 Colan Schwartz -- Fix restic options handler
+
+... and other contributors, thank you!

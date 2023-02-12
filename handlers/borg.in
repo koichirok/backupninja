@@ -41,7 +41,7 @@ getconf ignore_missing
 setsection dest
 getconf user
 getconf host
-getconf port 22
+getconf port
 getconf directory
 # strip trailing /
 directory=${directory%/}
@@ -69,7 +69,7 @@ fi
 if [ "$host" != "localhost" ]; then
    [ -n "$user" ] || fatal "Destination user not set"
    [ -n "$host" ] || fatal "Destination host not set"
-  execstr_repository="ssh://${user}@${host}:${port}${directory}"
+  execstr_repository="ssh://${user}@${host}${port:+:${port}}${directory}"
 else
   execstr_repository="$directory"
 fi
@@ -104,8 +104,8 @@ fi
 # check the connection at the source and destination
 [ -n "$test" ] || test=0
 if [ "$host" != "localhost" ] && ([ "$testconnect" = "yes" ] || [ "${test}" -eq 1 ]); then
-   debug "ssh $sshoptions -o PasswordAuthentication=no $host -p $port -l $user 'echo -n 1'"
-   local ret=`ssh $sshoptions -o PasswordAuthentication=no $host -p $port -l $user 'echo -n 1'`
+   debug "ssh $sshoptions -o PasswordAuthentication=no ${host}${port:+ -p ${port}} -l $user 'echo -n 1'"
+   local ret=`ssh $sshoptions -o PasswordAuthentication=no ${host}${port:+ -p ${port}} -l $user 'echo -n 1'`
    if [ "$ret" = 1 ]; then
       debug "Connected to $host as $user successfully"
    else

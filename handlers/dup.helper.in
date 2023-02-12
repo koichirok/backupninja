@@ -51,6 +51,16 @@ do_dup_excludes() {
    set +o noglob
 }
 
+do_dup_src() {
+   do_dup_host_includes
+   [ $? = 0 ] || return 1
+   do_dup_excludes
+   [ $? = 0 ] || return 1
+
+   _src_done="(DONE)"
+   setDefault dest
+}
+
 do_dup_dest() {
 
    local replyconverted
