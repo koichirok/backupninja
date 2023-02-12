@@ -7,7 +7,7 @@ Uploaders: Micah Anderson <micah@riseup.net>,
 Build-Depends:
  debhelper-compat (= 13)
 Build-Conflicts: autoconf2.13
-Standards-Version: 4.5.1
+Standards-Version: 4.6.2
 Homepage: https://0xacab.org/liberate/backupninja
 Vcs-Browser: https://0xacab.org/liberate/backupninja/tree/debian
 Vcs-Git: https://0xacab.org/liberate/backupninja.git
