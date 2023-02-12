@@ -13,6 +13,10 @@
 # 1 -- Fatal errors           (only)
 loglevel = 4
 
+# Produce prometheus metrics of backup status (default = no).
+# Requires `prometheus-node-exporter` to be installed
+reportprom = false
+
 # send a summary of the backup status to
 # this email address:
 reportemail = root

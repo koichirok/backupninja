@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2] - 2023-02-12
+
+### Added
+
+- [core] prometheus metrics for backup status
+
+### Changed
+
+- [borg] don't hardcode ssh port default (DEBBUG-993951)
+- [core] allow for disabling reports by email
+
+### Fixed
+
+- [borg] fix borg example: set cache_directory to source section
+- [dup] actually run duplicity `remove-older-than` (#11345)
+- [dup] remove default duplicity option `--extra-clean` (#11335)
+- [dup.helper] re-add a version of the do_dup_src function (#11332)
+- [restic] restic handler doesn't initialize test variable (#11328)
+- [sys] remove old LUKS header backup file prior to regenerating (#11333)
+- [sys] don't cancel partition backup if hwinfo absent (#11333)
+- [tests] fixes and improvements
+
 ## [1.2.1] - 2021-01-25
 
 ### Added

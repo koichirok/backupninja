@@ -1,5 +1,5 @@
 %define name    backupninja
-%define version 1.2.1
+%define version 1.2.2
 
 Summary:    Backupninja backup tool
 Name:       %{name}
@@ -11,7 +11,7 @@ URL:        https://0xacab.org/liberate/backupninja
 Source:     %{name}-%{version}.tar.gz
 Requires:   bash, gawk, rdiff-backup, gzip
 Provides:   %{name}
-Packager:   Petr Klima <Petr.Klima@madeta-group.cz>
+Packager:   Petr Klima <Petr.Klima@madeta.cz>
 BuildRoot:  %{_tmppath}/%{name}-%{version}
 Prefix:     %{_prefix}
 
