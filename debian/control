@@ -4,7 +4,7 @@ Priority: optional
 Maintainer: Debian backupninja maintainers <pkg-backupninja@lists.riseup.net>
 Uploaders:
  Micah Anderson <micah@riseup.net>,
- Jerome Charaoui <jerome@riseup.net>,
+ Jérôme Charaoui <jerome@riseup.net>,
 Build-Depends:
  debhelper-compat (= 13),
 Build-Conflicts:
