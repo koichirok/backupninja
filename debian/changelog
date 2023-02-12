@@ -1,3 +1,13 @@
+backupninja (1.2.2-1) unstable; urgency=medium
+
+  * New upstream version 1.2.2 (Closes: #993951)
+  * d/control: bump debhelper-compat to 13
+  * d/control: bump Standards-Version, no changes needed
+  * add lintian override for spelling-error-in-description
+  * fix lintian override for non-standard-dir-perm
+
+ -- Jérôme Charaoui <jerome@riseup.net>  Sun, 12 Feb 2023 15:01:53 -0500
+
 backupninja (1.2.1-1) unstable; urgency=medium
 
   * Remove intrigeri from Uploaders (Closes: #919041)
