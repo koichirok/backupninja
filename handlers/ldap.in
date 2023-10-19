@@ -78,7 +78,7 @@ if [ "$ldif" == "yes" ]; then
 
          ext=
          if [ "$compress" == "yes" ]; then
-            ext=".gz"
+            ext=".$GZIP_EXT"
          fi
          touch $dumpdir/$dbsuffix.ldif$ext
          if [ ! -f $dumpdir/$dbsuffix.ldif$ext ]; then
@@ -86,7 +86,7 @@ if [ "$ldif" == "yes" ]; then
          fi
 
          if [ "$compress" == "yes" ]; then
-            execstr="$execstr | $GZIP $GZIP_OPTS > $dumpdir/$dbsuffix.ldif.gz"
+            execstr="$execstr | $GZIP $GZIP_OPTS > $dumpdir/$dbsuffix.ldif.$GZIP_EXT"
          else
             execstr="$execstr > $dumpdir/$dbsuffix.ldif"
          fi

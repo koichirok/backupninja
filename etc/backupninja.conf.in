@@ -92,4 +92,5 @@ when = everyday at 01:00
 # PGSQLDUMPALL=/usr/bin/pg_dumpall
 # GZIP=/bin/gzip
 # GZIP_OPTS='--rsyncable'
+# GZIP_EXT='gz'
 # RSYNC=/usr/bin/rsync

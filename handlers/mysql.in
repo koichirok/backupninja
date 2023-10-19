@@ -213,7 +213,7 @@ then
          fatal "mysqld doesn't appear to be running!"
       fi
       if [ "$compress" == "yes" ]; then
-         execstr="$DUMP | $GZIP $GZIP_OPTS > '$dumpdir/${db}.sql.gz'"
+         execstr="$DUMP | $GZIP $GZIP_OPTS > '$dumpdir/${db}.sql.$GZIP_EXT'"
       else
          execstr="$DUMP > '$dumpdir/${db}.sql'"
       fi
