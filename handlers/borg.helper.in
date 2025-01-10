@@ -294,6 +294,13 @@ do_borg_finish() {
 ## - example.borg
 ## - $borg_docs
 
+## passed directly to borg commands, e.g. to use a particular remote
+## borg executable (here: 'borg12'), set this to:
+## options = --remote-path=borg12
+##
+## Default:
+# options =
+
 [source]
 EOF
    ## includes ##

@@ -22,6 +22,7 @@ export BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK=yes
 
 ### GET CONFIG ###
 
+getconf options
 getconf testconnect yes
 getconf nicelevel 0
 getconf ionicelevel
@@ -109,7 +110,7 @@ if [ "$host" != "localhost" ] && ([ "$testconnect" = "yes" ] || [ "${test}" -eq 
    if [ "$ret" = 1 ]; then
       debug "Connected to $host as $user successfully"
    else
-      teststr="borg list --show-rc -v $execstr_repository"
+      teststr="borg list $options --show-rc -v $execstr_repository"
       debug "$teststr"
       output=`su -c "$teststr" 2>&1`
       if echo "$output" | grep "terminating with success status" \
@@ -126,7 +127,7 @@ fi
 ### INIT IF NEEDED ###
 
 if [ "$init" == "yes" ]; then
-   initstr="borg init --encryption=$encryption $execstr_repository"
+   initstr="borg init $options --encryption=$encryption $execstr_repository"
    debug "executing borg init"
    debug "$initstr"
    if [ $test = 0 ]; then
@@ -143,7 +144,7 @@ fi
 
 ### EXECUTE ###
 
-execstr="borg create --stats --compression $compression"
+execstr="borg create $options --stats --compression $compression"
 
 set -o noglob
 
@@ -207,7 +208,7 @@ if [ "$prune" == "yes" ]; then
    if [ ! "$keep" == "0" ]; then
       prune_options="${prune_options} --keep-within=${keep}"
    fi
-   prunestr="borg prune $prune_options $execstr_repository"
+   prunestr="borg prune $options $prune_options $execstr_repository"
    debug "executing borg prune"
    debug "$prunestr"
    if [ $test = 0 ]; then
