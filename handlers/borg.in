@@ -41,6 +41,10 @@ getconf exclude
 getconf create_options
 getconf prune yes
 getconf keep 30d
+getconf keephourly 0
+getconf keepdaily 0
+getconf keepweekly 0
+getconf keepmonthly 0
 getconf prune_options
 getconf cache_directory
 getconf filter_warnings yes
@@ -239,6 +243,18 @@ fi
 if [ "$prune" == "yes" ]; then
    if [ ! "$keep" == "0" ]; then
       prune_options="${prune_options} --keep-within=${keep}"
+   fi
+   if [ ! "$keephourly" == "0" ]; then
+      prune_options="${prune_options} --keep-hourly=${keephourly}"
+   fi
+   if [ ! "$keepdaily" == "0" ]; then
+      prune_options="${prune_options} --keep-daily=${keepdaily}"
+   fi
+   if [ ! "$keepweekly" == "0" ]; then
+      prune_options="${prune_options} --keep-weekly=${keepweekly}"
+   fi
+   if [ ! "$keepmonthly" == "0" ]; then
+      prune_options="${prune_options} --keep-monthly=${keepmonthly}"
    fi
    prunestr="borg prune $options $prune_options $execstr_repository"
    debug "executing borg prune"

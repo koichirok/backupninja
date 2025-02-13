@@ -130,6 +130,16 @@ exclude = /var/lib/mysql
 ## Default:
 # keep = 30d
 
+## define hourly, daily, weekly and monthly retention for the "borg prune" operation.
+##
+## theses options will be ignored if set to 0
+##
+## Default:
+## keephourly = 0
+## keepdaily = 0
+## keepweekly = 0
+## keepmonthly = 0
+
 ## define extra command-line options for the "borg prune" operation.
 ##
 ## Example:
