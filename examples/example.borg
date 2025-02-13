@@ -46,6 +46,22 @@
 ## Default:
 # bwlimit = 0
 
+## export "borg info last_archive" to a given file
+## this is usefull for monitoring without using borg
+##
+## Example:
+# borginfo = /var/backups/borginfo.json
+## Default:
+# borginfo =
+
+## export "borg list repository" to a given file
+## this is usefull for monitoring without using borg
+##
+## Example
+# borglist = /var/backups/borglist.json
+## Default:
+# borglist =
+
 ######################################################
 ## source section
 ## (where the files to be backed up are coming from)

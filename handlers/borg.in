@@ -31,6 +31,9 @@ getconf nicelevel 0
 getconf ionicelevel
 getconf bwlimit
 
+getconf borginfo
+getconf borglist
+
 setsection source
 getconf init yes
 getconf include
@@ -250,8 +253,48 @@ if [ "$prune" == "yes" ]; then
          warning "$output"
          warning "Removing old backups finished with warnings."
       else
-         error $output
-         fatal "Failed removing old backups."
+         info "$output"
+         warning "Failed removing old backups. Borg returned exit code ${ret}."
+      fi
+   fi
+fi
+
+### WRITE STATS FILES ###
+
+if [ -n "$borginfo" ]; then
+   mkdir -p "$(dirname "$borginfo")"
+
+   infostr="borg info $execstr_repository --last 1 --json > $borginfo"
+
+   debug "$infostr"
+   if [ "$test" = 0 ]; then
+      output=$(su -c "$infostr" 2>&1)
+      ret=$?
+      if [ $ret = 0 ]; then
+         debug "$output"
+         info "Successfully writing borg info to $borginfo"
+      else
+         info "$output"
+         error "Failed to write borg info to $borginfo"
+      fi
+   fi
+fi
+
+if [ -n "$borglist" ]; then
+   mkdir -p "$(dirname "$borglist")"
+
+   infostr="borg list $execstr_repository --json > $borglist"
+
+   debug "$infostr"
+   if [ "$test" = 0 ]; then
+      output=$(su -c "$infostr" 2>&1)
+      ret=$?
+      if [ $ret = 0 ]; then
+         debug "$output"
+         info "Successfully writing borg list to $borglist"
+      else
+         info "$output"
+         error "Failed to write borg list to $borglist"
       fi
    fi
 fi
