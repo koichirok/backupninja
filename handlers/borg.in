@@ -265,6 +265,21 @@ if [ "$prune" == "yes" ]; then
       if [ $ret = 0 ]; then
          debug "$output"
          info "Removing old backups succeeded."
+
+         if [[ "$(borg --version)" > "borg 1.2" ]] ; then
+            compactstr="borg compact $execstr_repository"
+
+            debug "$compactstr"
+            output="$(su -c "$compactstr" 2>&1)"
+            ret=$?
+            if [ $ret = 0 ]; then
+               debug "$output"
+               info "Compacting borg repository succeeded."
+            else
+               info "$output"
+               warning "Compacting borg repository failed. Borg returned exit code ${ret}."
+            fi
+         fi
       elif [ $ret = 1 ]; then
          warning "$output"
          warning "Removing old backups finished with warnings."
