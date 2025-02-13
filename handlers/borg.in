@@ -37,7 +37,9 @@ getconf prune yes
 getconf keep 30d
 getconf prune_options
 getconf cache_directory
-getconf ignore_missing
+getconf filter_warnings yes
+getconf warning_if_file_changed_during_backup yes
+getconf file_changes_to_ignore /
 
 setsection dest
 getconf user
@@ -180,24 +182,46 @@ execstr="${execstr} ${excludes} $execstr_repository::$execstr_archive ${includes
 debug "executing borg create"
 debug "$nice $execstr"
 
-if [ $test = 0 ]; then
-   output=`$nice su -c "$execstr" 2>&1`
+if [ "$test" = 0 ]; then
+   output=$($nice su -c "$execstr" 2>&1)
    ret=$?
-   if [ $ret = 0 ]; then
-      debug $output
-      info "Successfully finished backing up source."
-   elif [ $ret = 1 ]; then
-      warnmsg=$(echo "$output" | @SED@ -n '1,/^-\+$/{x;p;d;}; x' | @SED@ '/^$/d')
-      if [ "$ignore_missing" = "yes" ] && ! echo "$warnmsg" | grep -qv '\[Errno 2\] No such file or directory:'; then
-         debug $output
-         info "Backing up source finished with missing file warnings."
+   if [ $ret = 0 ]; then # borg ok
+      debug "$output"
+      info "Successfully finished backing up source"
+   elif [ $ret = 1 ]; then # borg warning
+      # Borg can return 1 for warnings that are impossible to manually check on large infrastructures :
+      # - when some files/repositories included in borg create does not exist
+      # - when some files have changed during the backup (happens a lot on log files)
+      # So we need to filter the output line by line to print these warnings as debug.
+
+      # Warnings are always printed by borg before a long "---…" line.
+      # So we break the output in two along this line.
+      warning_output=$(echo "$output" | sed '/----------------------------/Q') # Before -----…
+      debug_output=$(echo "$output" | sed -n '/----------------------------/,$p') # After -----…
+
+      if [ -n "$warning_output" ] && [ "$filter_warnings" == "yes" ]; then
+         if [ "$warning_if_file_changed_during_backup" == "yes" ]; then
+            file_changes_to_ignore="($file_changes_to_ignore"'|/var/lib/apt/.*|/var/backups/atop/.*|/var/lib/postfix/.*|.*prometheus.*/wal/.*|.*/pg_wal/.*|.*/upload(s)?/.*|.*/(page_)?cache/.*|/var/mail/.*|.*/log(s)?/.*|.*/var/log/.*|.*(log\.json|\.log|\.err|\.wal|\.rrd(4j)?|\.wsp|\.part|\.seq|\.out|\.aof|\.rdb))'
+         else
+            file_changes_to_ignore=""
+         fi
+         non_warning_regex="(Attempting to access a previously unknown unencrypted repository|The repository at location.*was previously located at|Do you want to continue?|No such file or directory|$file_changes_to_ignore: file changed while we backed it up|Using a pure-python msgpack! This will result in lower performance.|/var/backups/drbd/.*scandir.)"
+         echo "$warning_output" | while IFS= read -r line; do
+            if echo "$line" | grep -Eq "$non_warning_regex"; then
+               debug "$line"
+            else
+               warning "$line"
+            fi
+         done
+         debug "$debug_output"
+         info "Successfully finished backing up source"
       else
-         warning $output
+         warning "$output"
          warning "Backing up source finished with warnings."
       fi
-   else
-      error $output
-      fatal "Failed backing up source."
+   else # borg error
+      error "$output"
+      fatal "Failed backuping up source. Borg returned exit code ${ret}."
    fi
 fi
 

@@ -218,10 +218,10 @@ finish_borg() {
     greplog 'Debug: export BORG_CACHE_DIR="/var/cache/borg"$'
 }
 
-@test "check config parameter source/ignore_missing" {
+@test "check config parameter source/filter_warnings" {
     delconfig source include
     setconfig_repeat source include "$BN_SRCDIR/boot" "$BN_SRCDIR/etc" "$BN_SRCDIR/lib" "$BN_SRCDIR/var" "$BN_SRCDIR/foo"
-    setconfig source ignore_missing yes
+    setconfig source filter_warnings yes
     setconfig dest archive testarchive
     setconfig dest encryption none
     setconfig dest compression zstd,16
