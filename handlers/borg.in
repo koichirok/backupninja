@@ -1,3 +1,6 @@
+#!/bin/bash
+# shellcheck shell=bash
+# shellcheck disable=SC2154
 # -*- mode: sh; sh-basic-offset: 3; indent-tabs-mode: nil; -*-
 # vim: set filetype=sh sw=3 sts=3 expandtab autoindent:
 #
@@ -28,6 +31,9 @@ getconf nicelevel 0
 getconf ionicelevel
 getconf bwlimit
 
+getconf borginfo
+getconf borglist
+
 setsection source
 getconf init yes
 getconf include
@@ -35,9 +41,15 @@ getconf exclude
 getconf create_options
 getconf prune yes
 getconf keep 30d
+getconf keephourly 0
+getconf keepdaily 0
+getconf keepweekly 0
+getconf keepmonthly 0
 getconf prune_options
 getconf cache_directory
-getconf ignore_missing
+getconf filter_warnings yes
+getconf warning_if_file_changed_during_backup yes
+getconf file_changes_to_ignore /
 
 setsection dest
 getconf user
@@ -46,7 +58,7 @@ getconf port
 getconf directory
 # strip trailing /
 directory=${directory%/}
-getconf archive {now:%Y-%m-%dT%H:%M:%S}
+getconf archive "{now:%Y-%m-%dT%H:%M:%S}"
 getconf compression lz4
 getconf encryption none
 getconf passphrase
@@ -104,21 +116,23 @@ fi
 
 # check the connection at the source and destination
 [ -n "$test" ] || test=0
+# shellcheck disable=SC2235
 if [ "$host" != "localhost" ] && ([ "$testconnect" = "yes" ] || [ "${test}" -eq 1 ]); then
-   debug "ssh $sshoptions -o PasswordAuthentication=no ${host}${port:+ -p ${port}} -l $user 'echo -n 1'"
-   local ret=`ssh $sshoptions -o PasswordAuthentication=no ${host}${port:+ -p ${port}} -l $user 'echo -n 1'`
+   teststr="ssh $sshoptions -o PasswordAuthentication=no ${host}${port:+ -p ${port}} -l $user 'echo -n 1'"
+   debug "$teststr"
+   ret=$(su -c "$teststr")
    if [ "$ret" = 1 ]; then
       debug "Connected to $host as $user successfully"
    else
       teststr="borg list $options --show-rc -v $execstr_repository"
       debug "$teststr"
-      output=`su -c "$teststr" 2>&1`
+      output=$(su -c "$teststr" 2>&1)
       if echo "$output" | grep "terminating with success status" \
          || echo "$output" | grep "^\S\+ is not a valid repository." \
          || echo "$output" | grep "^Repository \S\+ does not exist."; then
          debug "Connected to $host as $user successfully (forced command)"
       else
-         error $output
+         error "$output"
          fatal "Can't connect to $host as $user."
       fi
    fi
@@ -130,13 +144,13 @@ if [ "$init" == "yes" ]; then
    initstr="borg init $options --encryption=$encryption $execstr_repository"
    debug "executing borg init"
    debug "$initstr"
-   if [ $test = 0 ]; then
-      output="`su -c "$initstr" 2>&1`"
+   if [ "$test" = 0 ]; then
+      output="$(su -c "$initstr" 2>&1)"
       if [ $? = 2 ]; then
-         debug $output
+         debug "$output"
          info "Repository was already initialized"
       else
-         warning $output
+         warning "$output"
          warning "Repository has been initialized"
       fi
    fi
@@ -166,11 +180,11 @@ IFS=$SAVEIFS
 
 set +o noglob
 
-if [ ! -z $bwlimit ]; then
+if [ -n "$bwlimit" ]; then
    execstr="${execstr} --remote-ratelimit=${bwlimit}"
 fi
 
-if [ ! -z "$create_options" ]; then
+if [ -n "$create_options" ]; then
    execstr="${execstr} ${create_options}"
 fi
 
@@ -180,24 +194,46 @@ execstr="${execstr} ${excludes} $execstr_repository::$execstr_archive ${includes
 debug "executing borg create"
 debug "$nice $execstr"
 
-if [ $test = 0 ]; then
-   output=`$nice su -c "$execstr" 2>&1`
+if [ "$test" = 0 ]; then
+   output=$($nice su -c "$execstr" 2>&1)
    ret=$?
-   if [ $ret = 0 ]; then
-      debug $output
-      info "Successfully finished backing up source."
-   elif [ $ret = 1 ]; then
-      warnmsg=$(echo "$output" | @SED@ -n '1,/^-\+$/{x;p;d;}; x' | @SED@ '/^$/d')
-      if [ "$ignore_missing" = "yes" ] && ! echo "$warnmsg" | grep -qv '\[Errno 2\] No such file or directory:'; then
-         debug $output
-         info "Backing up source finished with missing file warnings."
+   if [ $ret = 0 ]; then # borg ok
+      debug "$output"
+      info "Successfully finished backing up source"
+   elif [ $ret = 1 ]; then # borg warning
+      # Borg can return 1 for warnings that are impossible to manually check on large infrastructures :
+      # - when some files/repositories included in borg create does not exist
+      # - when some files have changed during the backup (happens a lot on log files)
+      # So we need to filter the output line by line to print these warnings as debug.
+
+      # Warnings are always printed by borg before a long "---…" line.
+      # So we break the output in two along this line.
+      warning_output=$(echo "$output" | sed '/----------------------------/Q') # Before -----…
+      debug_output=$(echo "$output" | sed -n '/----------------------------/,$p') # After -----…
+
+      if [ -n "$warning_output" ] && [ "$filter_warnings" == "yes" ]; then
+         if [ "$warning_if_file_changed_during_backup" == "yes" ]; then
+            file_changes_to_ignore="($file_changes_to_ignore"'|/var/lib/apt/.*|/var/backups/atop/.*|/var/lib/postfix/.*|.*prometheus.*/wal/.*|.*/pg_wal/.*|.*/upload(s)?/.*|.*/(page_)?cache/.*|/var/mail/.*|.*/log(s)?/.*|.*/var/log/.*|.*(log\.json|\.log|\.err|\.wal|\.rrd(4j)?|\.wsp|\.part|\.seq|\.out|\.aof|\.rdb))'
+         else
+            file_changes_to_ignore=""
+         fi
+         non_warning_regex="(Attempting to access a previously unknown unencrypted repository|The repository at location.*was previously located at|Do you want to continue?|No such file or directory|$file_changes_to_ignore: file changed while we backed it up|Using a pure-python msgpack! This will result in lower performance.|/var/backups/drbd/.*scandir.)"
+         echo "$warning_output" | while IFS= read -r line; do
+            if echo "$line" | grep -Eq "$non_warning_regex"; then
+               debug "$line"
+            else
+               warning "$line"
+            fi
+         done
+         debug "$debug_output"
+         info "Successfully finished backing up source"
       else
-         warning $output
+         warning "$output"
          warning "Backing up source finished with warnings."
       fi
-   else
-      error $output
-      fatal "Failed backing up source."
+   else # borg error
+      error "$output"
+      fatal "Failed backuping up source. Borg returned exit code ${ret}."
    fi
 fi
 
@@ -208,21 +244,88 @@ if [ "$prune" == "yes" ]; then
    if [ ! "$keep" == "0" ]; then
       prune_options="${prune_options} --keep-within=${keep}"
    fi
+   if [ ! "$keephourly" == "0" ]; then
+      prune_options="${prune_options} --keep-hourly=${keephourly}"
+   fi
+   if [ ! "$keepdaily" == "0" ]; then
+      prune_options="${prune_options} --keep-daily=${keepdaily}"
+   fi
+   if [ ! "$keepweekly" == "0" ]; then
+      prune_options="${prune_options} --keep-weekly=${keepweekly}"
+   fi
+   if [ ! "$keepmonthly" == "0" ]; then
+      prune_options="${prune_options} --keep-monthly=${keepmonthly}"
+   fi
    prunestr="borg prune $options $prune_options $execstr_repository"
    debug "executing borg prune"
    debug "$prunestr"
-   if [ $test = 0 ]; then
-      output="`su -c "$prunestr" 2>&1`"
+   if [ "$test" = 0 ]; then
+      output="$(su -c "$prunestr" 2>&1)"
       ret=$?
       if [ $ret = 0 ]; then
-         debug $output
+         debug "$output"
          info "Removing old backups succeeded."
+
+         if [[ "$(borg --version)" > "borg 1.2" ]] ; then
+            compactstr="borg compact $execstr_repository"
+
+            debug "$compactstr"
+            output="$(su -c "$compactstr" 2>&1)"
+            ret=$?
+            if [ $ret = 0 ]; then
+               debug "$output"
+               info "Compacting borg repository succeeded."
+            else
+               info "$output"
+               warning "Compacting borg repository failed. Borg returned exit code ${ret}."
+            fi
+         fi
       elif [ $ret = 1 ]; then
-         warning $output
+         warning "$output"
          warning "Removing old backups finished with warnings."
       else
-         error $output
-         fatal "Failed removing old backups."
+         info "$output"
+         warning "Failed removing old backups. Borg returned exit code ${ret}."
+      fi
+   fi
+fi
+
+### WRITE STATS FILES ###
+
+if [ -n "$borginfo" ]; then
+   mkdir -p "$(dirname "$borginfo")"
+
+   infostr="borg info $execstr_repository --last 1 --json > $borginfo"
+
+   debug "$infostr"
+   if [ "$test" = 0 ]; then
+      output=$(su -c "$infostr" 2>&1)
+      ret=$?
+      if [ $ret = 0 ]; then
+         debug "$output"
+         info "Successfully writing borg info to $borginfo"
+      else
+         info "$output"
+         error "Failed to write borg info to $borginfo"
+      fi
+   fi
+fi
+
+if [ -n "$borglist" ]; then
+   mkdir -p "$(dirname "$borglist")"
+
+   infostr="borg list $execstr_repository --json > $borglist"
+
+   debug "$infostr"
+   if [ "$test" = 0 ]; then
+      output=$(su -c "$infostr" 2>&1)
+      ret=$?
+      if [ $ret = 0 ]; then
+         debug "$output"
+         info "Successfully writing borg list to $borglist"
+      else
+         info "$output"
+         error "Failed to write borg list to $borglist"
       fi
    fi
 fi

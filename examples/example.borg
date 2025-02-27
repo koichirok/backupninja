@@ -46,6 +46,22 @@
 ## Default:
 # bwlimit = 0
 
+## export "borg info last_archive" to a given file
+## this is usefull for monitoring without using borg
+##
+## Example:
+# borginfo = /var/backups/borginfo.json
+## Default:
+# borginfo =
+
+## export "borg list repository" to a given file
+## this is usefull for monitoring without using borg
+##
+## Example
+# borglist = /var/backups/borglist.json
+## Default:
+# borglist =
+
 ######################################################
 ## source section
 ## (where the files to be backed up are coming from)
@@ -114,6 +130,16 @@ exclude = /var/lib/mysql
 ## Default:
 # keep = 30d
 
+## define hourly, daily, weekly and monthly retention for the "borg prune" operation.
+##
+## theses options will be ignored if set to 0
+##
+## Default:
+## keephourly = 0
+## keepdaily = 0
+## keepweekly = 0
+## keepmonthly = 0
+
 ## define extra command-line options for the "borg prune" operation.
 ##
 ## Example:
@@ -124,21 +150,32 @@ exclude = /var/lib/mysql
 ## Default:
 # prune_options =
 
-## by default borg emits a warning when a source file or directory
-## vanishes during the backup operations
-## set to yes to ignore such warnings
-##
-## Example:
-## ignore_missing = yes
-##
-## Default:
-# ignore_missing =
-
 ## Path to the directory that will hold borg's cache files. By default this is
 ## empty, which will let borg use its default path of "~/.cache/borg".
 ##
 ## Default:
 # cache_directory =
+
+## by default borg emits various warnings that are impossible to check on large
+## infrastructures.
+## - when some files/repositories included in borg create does not exists
+## - when some files have changed during the backup (happens a lot on log files)
+## This option allows to disable these warning.
+##
+## Default:
+# filter_warnings = yes
+
+## when filter_warning == yes, allows to choose to disable warning if
+## file changed during backup
+##
+## Default:
+# warning_if_file_changed_during_backup = yes
+
+## when warning_if_file_changed_during_backup == yes, allows to ignore some
+## paths or filenames.
+##
+## Default:
+# file_changes_to_ignore = /
 
 ######################################################
 ## destination section
