@@ -231,9 +231,13 @@ if [ "$test" = 0 ]; then
          warning "$output"
          warning "Backing up source finished with warnings."
       fi
+   elif [ "$ret" -gt 128 ]; then # borg killed by linux signal
+      signal=$((ret-128))
+      warning "$output"
+      fatal "Failed backing up source. Borg killed by signal ${signal}."
    else # borg error
       error "$output"
-      fatal "Failed backuping up source. Borg returned exit code ${ret}."
+      fatal "Failed backing up source. Borg returned exit code ${ret}."
    fi
 fi
 
