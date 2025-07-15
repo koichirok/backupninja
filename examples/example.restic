@@ -95,6 +95,7 @@ password = secret
 #aws_session_token =
 
 [swift]
+## swift v2 needs:
 
 #os_auth_url =
 
@@ -107,6 +108,24 @@ password = secret
 #os_password =
 
 #os_region_name =
+
+## swift v3 needs:
+
+#os_identity_api_version = 3
+
+#os_auth_url =
+
+## One of
+#os_tenant_id =
+#os_tenant_name =
+
+#os_username =
+
+#os_password =
+
+#os_region_name =
+
+#os_user_domain_name =
 
 [b2]
 

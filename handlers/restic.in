@@ -45,6 +45,8 @@ getconf os_tenant_name
 getconf os_username
 getconf os_password
 getconf os_region_name
+getconf os_identity_api_version
+getconf os_user_domain_name
 
 setsection b2
 
@@ -154,18 +156,58 @@ fi
 # OpenStack Swift repository
 if [ "$(echo "$repository" | @AWK@ -F ':' '{print $1}')" == "swift" ]; then
 
-  (
-    [ -z "$os_auth_url" ] || [ -z "$os_tenant_id" ] || [ -z "$os_tenant_name" ] || \
-    [ -z "$os_username" ] || [ -z "$os_password" ] || [ -z "$os_region_name" ]
-  ) && \
-    fatal "Missing some Swift credentials."
+  # swift v2 needs:
+  ## $os_auth_url
+  ## $os_tenant_id
+  ## $os_tenant_name
+  ## $os_username
+  ## $os_password
+  ## $os_region_name
 
-  export_debug OS_AUTH_URL "$os_auth_url"
-  export_debug OS_TENANT_ID "$os_tenant_id"
-  export_debug OS_TENANT_NAME "$os_tenant_name"
-  export_debug OS_USERNAME "$os_username"
-  export_debug OS_PASSWORD "$os_password"
-  export_debug OS_REGION_NAME "$os_region_name"
+  # swift v3 needs:
+  ## $os_identity_api_version == 3
+  ## $os_auth_url
+  ## $os_tenant_id OR $os_tenant_name
+  ## $os_username
+  ## $os_password
+  ## $os_region_name
+  ## $os_user_domain_name
+
+  if [ -z "$os_identity_api_version" -o "$os_identity_api_version" = "2" ]; then
+    if (
+      [ -z "$os_auth_url" ] || [ -z "$os_tenant_id" ] || [ -z "$os_tenant_name" ] || \
+      [ -z "$os_username" ] || [ -z "$os_password" ] || [ -z "$os_region_name" ]
+    ); then
+      fatal "Missing some Swift v2 credentials."
+    fi
+
+    export_debug OS_AUTH_URL "$os_auth_url"
+    export_debug OS_TENANT_ID "$os_tenant_id"
+    export_debug OS_TENANT_NAME "$os_tenant_name"
+    export_debug OS_USERNAME "$os_username"
+    export_debug OS_PASSWORD "$os_password"
+    export_debug OS_REGION_NAME "$os_region_name"
+
+  elif [ "$os_identity_api_version" = "3" ]; then
+    if (
+      [ -z "$os_auth_url" ] || [ -z "$os_tenant_id" -a -z "$os_tenant_name" ] || \
+      [ -z "$os_username" ] || [ -z "$os_password" ] || [ -z "$os_region_name" ] || \
+      [ -z "$os_user_domain_name" ]
+    ); then
+      fatal "Missing some Swift v3 credentials."
+    fi
+
+    export_debug OS_AUTH_URL "$os_auth_url"
+    if [ -n "$os_tenant_id" ]; then
+      export_debug OS_TENANT_ID "$os_tenant_id"
+    else
+      export_debug OS_TENANT_NAME "$os_tenant_name"
+    fi
+    export_debug OS_USERNAME "$os_username"
+    export_debug OS_PASSWORD "$os_password"
+    export_debug OS_REGION_NAME "$os_region_name"
+    export_debug OS_USER_DOMAIN_NAME "$os_user_domain_name"
+  fi
 
 fi
 
