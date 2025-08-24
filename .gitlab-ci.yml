@@ -1,0 +1,19 @@
+---
+
+test:
+  image: debian:sid
+  before_script:
+    - echo Etc/UTC > /etc/timezone
+    - export LC_ALL=C.UTF-8
+    - export DEBIAN_FRONTEND=noninteractive
+    - apt-get update -qq
+    - apt-get upgrade -qy
+  script:
+    - apt-get install -y automake make dialog
+    - ./autogen.sh
+    - ./configure --prefix=/usr --mandir=/usr/share/man --sysconfdir=/etc --localstatedir=/var --libdir=/usr/lib --libexecdir=/usr/lib
+    - make
+    - make install
+    - ./test/test.sh backupninja
+  rules:
+    - if: $CI_COMMIT_BRANCH

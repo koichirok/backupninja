@@ -7,7 +7,7 @@ begin_backupninja() {
 teardown_backupninja() {
     [ -x /usr/bin/mail.moved ] && mv /usr/bin/mail.moved /usr/bin/mail
     [ -x /usr/bin/rsync.moved ] && mv /usr/bin/rsync.moved /usr/bin/rsync
-    rm -f /var/mail/vagrant
+    rm -f /var/mail/ci_user
     rm -f /var/lib/prometheus/node-exporter/backupninja.prom
 }
 
@@ -30,7 +30,7 @@ create_test_action() {
 }
 
 @test "general: error thrown on attempt to run as non-root user" {
-    run sudo -u vagrant backupninja -f "${BATS_TMPDIR}/backupninja.conf"
+    run runuser -u ci_user -- backupninja -f "${BATS_TMPDIR}/backupninja.conf"
     [ "$status" -eq 3 ]
     [ "${lines[1]}" = "backupninja can only be run as root" ]
 }
@@ -57,7 +57,7 @@ create_test_action() {
 
 @test "permissions: error thrown when backup action is owned by non-root user" {
     create_test_action
-    chown vagrant: "${BATS_TMPDIR}/backup.d/test.sh"
+    chown ci_user: "${BATS_TMPDIR}/backup.d/test.sh"
     run backupninja -f "${BATS_TMPDIR}/backupninja.conf"
     [ "$status" -eq 2 ]
     echo "${lines[0]}" | grep -qe '^Configuration files must be owned by root!'
@@ -91,14 +91,14 @@ create_test_action() {
     create_test_action halt test_halt
     run backupninja --now -f "${BATS_TMPDIR}/backupninja.conf" --run "${BATS_TMPDIR}/backup.d/test.sh"
     sleep 0.1
-    grep -q "\*halt\* -- ${BATS_TMPDIR}/backup.d/test.sh" /var/mail/vagrant
+    grep -q "\*halt\* -- ${BATS_TMPDIR}/backup.d/test.sh" /var/mail/ci_user
 }
 
 @test "reports: report is mailed when fatals > 0" {
     create_test_action fatal test_error
     run backupninja --now -f "${BATS_TMPDIR}/backupninja.conf" --run "${BATS_TMPDIR}/backup.d/test.sh"
     sleep 0.1
-    grep -q "\*failed\* -- ${BATS_TMPDIR}/backup.d/test.sh" /var/mail/vagrant
+    grep -q "\*failed\* -- ${BATS_TMPDIR}/backup.d/test.sh" /var/mail/ci_user
 }
 
 @test "reports: report is mailed when reportwarning = yes and warnings > 0" {
@@ -107,7 +107,7 @@ create_test_action() {
     setconfig backupninja.conf reportwarning yes
     run backupninja --now -f "${BATS_TMPDIR}/backupninja.conf" --run "${BATS_TMPDIR}/backup.d/test.sh"
     sleep 0.1
-    grep -q "Warning: test_warning" /var/mail/vagrant
+    grep -q "Warning: test_warning" /var/mail/ci_user
 }
 
 @test "reports: report is mailed when reportsuccess = yes" {
@@ -115,7 +115,7 @@ create_test_action() {
     setconfig backupninja.conf reportsuccess yes
     run backupninja --now -f "${BATS_TMPDIR}/backupninja.conf" --run "${BATS_TMPDIR}/backup.d/test.sh"
     sleep 0.1
-    grep -q "success -- ${BATS_TMPDIR}/backup.d/test.sh" /var/mail/vagrant
+    grep -q "success -- ${BATS_TMPDIR}/backup.d/test.sh" /var/mail/ci_user
 }
 
 @test "reports: success report contains informational messages" {
@@ -124,7 +124,7 @@ create_test_action() {
     setconfig backupninja.conf reportinfo yes
     run backupninja --now -f "${BATS_TMPDIR}/backupninja.conf" --run "${BATS_TMPDIR}/backup.d/test.sh"
     sleep 0.1
-    grep -q "Info: test_info" /var/mail/vagrant
+    grep -q "Info: test_info" /var/mail/ci_user
 }
 
 @test "reports: success report contains disk space info" {
@@ -134,7 +134,7 @@ create_test_action() {
     setconfig backupninja.conf reportspace yes
     run backupninja --now -f "${BATS_TMPDIR}/backupninja.conf" --run "${BATS_TMPDIR}/backup.d/test.sh"
     sleep 0.1
-    grep -q "/dev/sda1" /var/mail/vagrant
+    grep -q "Use%" /var/mail/ci_user
 }
 
 @test "reports: emits error if mail executable is not found" {
@@ -151,7 +151,7 @@ create_test_action() {
     setconfig backupninja.conf reportinfo yes
     run backupninja --now -f "${BATS_TMPDIR}/backupninja.conf" --run "${BATS_TMPDIR}/backup.d/test.sh"
     sleep 0.1
-    grep -q '^=\{1000\}$' /var/mail/vagrant
+    grep -q '^=\{1000\}$' /var/mail/ci_user
 }
 
 @test "reports: wraps report text according to reportwrap" {
@@ -161,7 +161,7 @@ create_test_action() {
     setconfig backupninja.conf reportwrap 100
     run backupninja --now -f "${BATS_TMPDIR}/backupninja.conf" --run "${BATS_TMPDIR}/backup.d/test.sh"
     sleep 0.1
-    grep -q '^=\{100\}$' /var/mail/vagrant
+    grep -q '^=\{100\}$' /var/mail/ci_user
 }
 
 @test "reports: reporthost sends report to remote host" {
@@ -248,7 +248,7 @@ create_test_action() {
     setconfig backupninja.conf reportemail no
     run backupninja --now -f "${BATS_TMPDIR}/backupninja.conf" --run "${BATS_TMPDIR}/backup.d/test.sh"
     [ "$status" -eq 0 ]
-    ! test -f /var/mail/vagrant
+    ! test -f /var/mail/ci_user
 }
 
 @test "reports: writes prometheus metrics when reportprom is yes" {
