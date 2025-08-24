@@ -236,7 +236,7 @@ create_test_action() {
     setconfig backupninja.conf reportinfo yes
     setconfig backupninja.conf reporthost "$BN_REMOTEHOST"
     setconfig backupninja.conf reportuser "$BN_REMOTEUSER"
-    setconfig backupninja.conf reportdirectory "/foo"
+    setconfig backupninja.conf reportdirectory "/unwritable"
     run backupninja --now -f "${BATS_TMPDIR}/backupninja.conf" --run "${BATS_TMPDIR}/backup.d/test.sh"
     [ "$status" -eq 1 ]
 }

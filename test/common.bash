@@ -1,7 +1,7 @@
 setup() {
 
     # declare some constants
-    readonly BN_REMOTEUSER="vagrant"
+    readonly BN_REMOTEUSER="ci_user"
     readonly BN_REMOTEHOST="bntest1"
     readonly BN_BACKUPDIR="/var/backups"
     readonly BN_SRCDIR="/var/cache/bntest"
@@ -146,12 +146,12 @@ cleanup_backups() {
     for c in "$@"; do
         case "$c" in
             "local")
-                grep -q "^tmpfs $BN_BACKUPDIR" /proc/mounts && umount "$BN_BACKUPDIR"
-                mount -t tmpfs tmpfs "$BN_BACKUPDIR"
+                rm -rf "$BN_BACKUPDIR"
+                mkdir -p "$BN_BACKUPDIR"
                 ;;
             "remote")
-                run remote_command "grep -q \"^tmpfs $BN_BACKUPDIR\" /proc/mounts && sudo umount \"$BN_BACKUPDIR\""
-                remote_command "sudo mount -t tmpfs tmpfs \"$BN_BACKUPDIR\""
+                run remote_command "rm -rf \"$BN_BACKUPDIR\""
+                remote_command "mkdir -p \"$BN_BACKUPDIR\""
                 ;;
         esac
     done
