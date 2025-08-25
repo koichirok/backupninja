@@ -100,7 +100,9 @@ finish_rsync() {
 @test "verify remote backup, short format" {
     run rsync -ain --exclude var --delete "${BN_SRCDIR}/" "${BN_REMOTEUSER}@${BN_REMOTEHOST}:${BN_BACKUPDIR}/testrsync${BN_SRCDIR}/bntest.0"
     [ "$status" -eq 0 ]
-    ! echo "$output" | grep -qv '^skipping non-regular file'
+    if [ -n "$output" ]; then
+        run ! echo "$output" | grep -qv '^skipping non-regular file'
+    fi
 }
 
 @test "verify remote backup rotation, short format" {
@@ -121,7 +123,9 @@ finish_rsync() {
 @test "verify remote backup, long format" {
     run rsync -ain --exclude var --delete "${BN_SRCDIR}/" "${BN_REMOTEUSER}@${BN_REMOTEHOST}:${BN_BACKUPDIR}/testrsync${BN_SRCDIR}/daily.1"
     [ "$status" -eq 0 ]
-    ! echo "$output" | grep -qv '^skipping non-regular file'
+    if [ -n "$output" ]; then
+        run ! echo "$output" | grep -qv '^skipping non-regular file'
+    fi
 }
 
 @test "verify remote backup rotation, long format" {
@@ -142,7 +146,9 @@ finish_rsync() {
 @test "verify remote backup, mirror format" {
     run rsync -ain --exclude var --delete "${BN_SRCDIR}/" "${BN_REMOTEUSER}@${BN_REMOTEHOST}:${BN_BACKUPDIR}/testrsync${BN_SRCDIR}/"
     [ "$status" -eq 0 ]
-    ! echo "$output" | grep -qv '^skipping non-regular file'
+    if [ -n "$output" ]; then
+        run ! echo "$output" | grep -qv '^skipping non-regular file'
+    fi
 }
 
 
