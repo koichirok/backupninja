@@ -149,7 +149,7 @@ finish_borg() {
     # absent parameter
     delconfig source create_options
     testaction
-    greplog 'Debug: executing borg create$' "\sborg create --stats --compression lz4\s\+--exclude\s"
+    greplog 'Debug: executing borg create$' "\sborg create\s\+--stats --compression lz4\s\+--exclude\s"
 
     # defined parameter
     setconfig source create_options "-x --exclude-caches"
@@ -198,7 +198,7 @@ finish_borg() {
     # absent parameter
     delconfig source prune_options
     testaction
-    greplog 'Debug: executing borg prune$' "Debug: borg prune  --keep-within=30d ${BN_BACKUPDIR}/testborg$"
+    greplog 'Debug: executing borg prune$' "Debug: borg prune\s\+--keep-within=30d ${BN_BACKUPDIR}/testborg$"
 
     # defined parameter
     setconfig source prune_options "--keep-daily 9 --save-space"
@@ -342,7 +342,7 @@ finish_borg() {
     delconfig dest passphrase
     cleanup_backups local
     runaction
-    greplog 'Debug: executing borg init$' 'Debug: borg init --encryption=none'
+    greplog 'Debug: executing borg init$' 'Debug: borg init\s\+--encryption=none'
     greplog "Warning: Repository has been initialized"
 }
 
@@ -358,7 +358,7 @@ finish_borg() {
     setconfig dest passphrase 123test
     cleanup_backups local
     runaction
-    greplog 'Debug: executing borg init$' 'Debug: borg init --encryption=repokey'
+    greplog 'Debug: executing borg init$' 'Debug: borg init\s\+--encryption=repokey'
     greplog "Warning: Repository has been initialized"
 }
 
@@ -378,7 +378,7 @@ finish_borg() {
     setconfig dest user "${BN_REMOTEUSER}"
     cleanup_backups remote
     runaction
-    greplog 'Debug: executing borg init$' 'Debug: borg init --encryption=repokey'
+    greplog 'Debug: executing borg init$' 'Debug: borg init\s\+--encryption=repokey'
     greplog "Warning: Repository has been initialized"
 }
 
