@@ -1,9 +1,9 @@
 load common
 
 begin_rsync() {
-    install_pkgs debootstrap rsync
+    install_pkgs rsync
     if [ ! -d "$BN_SRCDIR" ]; then
-        debootstrap --variant=minbase testing "$BN_SRCDIR"
+        make_rootfs testing "$BN_SRCDIR"
     fi
 }
 

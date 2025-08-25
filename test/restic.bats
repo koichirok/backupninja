@@ -2,8 +2,7 @@ load common
 
 begin_restic() {
     if [ ! -d "$BN_SRCDIR" ]; then
-        apt -qq install debootstrap
-        debootstrap --variant=minbase testing "$BN_SRCDIR"
+        make_rootfs testing "$BN_SRCDIR"
     fi
 
     [ -x "$(which restic)" ] || apt -qq install restic

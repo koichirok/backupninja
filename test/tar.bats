@@ -1,9 +1,9 @@
 load common
 
 begin_tar() {
-    install_pkgs debootstrap ncompress zstd
+    install_pkgs ncompress zstd
     if [ ! -d "$BN_SRCDIR" ]; then
-        debootstrap --variant=minbase testing "$BN_SRCDIR"
+        make_rootfs testing "$BN_SRCDIR"
     fi
 }
 

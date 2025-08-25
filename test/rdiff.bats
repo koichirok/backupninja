@@ -1,9 +1,9 @@
 load common
 
 begin_rdiff() {
-    install_pkgs debootstrap rdiff-backup cstream
-    if [ ! -d /var/cache/bntest ]; then
-        debootstrap --variant=minbase testing /var/cache/bntest
+    install_pkgs rdiff-backup cstream
+    if [ ! -d "$BN_SRCDIR" ]; then
+        make_rootfs testing "$BN_SRCDIR"
     fi
 }
 

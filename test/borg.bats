@@ -1,9 +1,9 @@
 load common
 
 begin_borg() {
-    install_pkgs debootstrap borgbackup
+    install_pkgs borgbackup
     if [ ! -d "$BN_SRCDIR" ]; then
-        debootstrap --variant=minbase testing "$BN_SRCDIR"
+        make_rootfs testing "$BN_SRCDIR"
     fi
 }
 

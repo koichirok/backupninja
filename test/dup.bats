@@ -1,9 +1,9 @@
 load common
 
 begin_dup() {
-    install_pkgs debootstrap duplicity trickle
+    install_pkgs duplicity trickle
     if [ ! -d /var/cache/bntest ]; then
-        debootstrap --variant=minbase testing "$BN_SRCDIR"
+        make_rootfs testing "$BN_SRCDIR"
     fi
 }
 

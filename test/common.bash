@@ -245,3 +245,8 @@ makegpgkeys() {
 install_pkgs() {
     TMPDIR=/tmp DEBIAN_FRONTEND=noninteractive apt-get -qq install $@
 }
+
+make_rootfs() {
+    command -v mmdebstrap >/dev/null || install_pkgs mmdebstrap
+    mmdebstrap "$1" "$2" --aptopt='Acquire::https::Proxy "DIRECT"' --dpkgopt=force-unsafe-io --variant=minbase
+}
