@@ -86,10 +86,10 @@ setconfig() {
     fi
     if [ -n "$3" ]; then
         # named section
-        crudini --set "$CONFIGFILE" "$1" "$2" "$3"
+        crudini --set "$CONFIGFILE" -- "$1" "$2" "$3"
     else
         # default section
-        crudini --set "$CONFIGFILE" '' "$1" "$2"
+        crudini --set "$CONFIGFILE" -- '' "$1" "$2"
     fi
 }
 
