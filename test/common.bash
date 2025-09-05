@@ -1,8 +1,8 @@
 setup() {
 
     # declare some constants
-    readonly BN_REMOTEUSER="ci_user"
-    readonly BN_REMOTEHOST="bntest1"
+    readonly BN_REMOTEUSER="${BN_REMOTEUSER:-ci_user}"
+    readonly BN_REMOTEHOST="${BN_REMOTEHOST:-bntest1}"
     readonly BN_BACKUPDIR="/var/backups"
     readonly BN_SRCDIR="/var/cache/bntest"
 
