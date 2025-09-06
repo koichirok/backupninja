@@ -79,6 +79,9 @@ usecolors = yes
 # default value for 'when'
 when = everyday at 01:00
 
+# conf.d for backupninja.conf overrides
+config_d_directory = @CFGDIR@/backupninja.conf.d
+
 # programs paths
 # SLAPCAT=/usr/sbin/slapcat
 # LDAPSEARCH=/usr/bin/ldapsearch

@@ -58,20 +58,46 @@ function version_ge() {
 
 function setfile() {
    CURRENT_CONF_FILE=$1
+   # initialize empty and ommit a default value
+   CURRENT_CONF_D_DIR=""
+   getconf config_d_directory
+   # for consistency the config key is in lowercase
+   CURRENT_CONF_D_DIR=$config_d_directory
 }
 
 function setsection() {
    CURRENT_SECTION=$1
 }
 
-#
 # sets a global var with name equal to $1
 # to the value of the configuration parameter $1
 # $2 is the default.
-#
+# Begin by parsing the conf.d directory for configs.
+# If the param is not found there fallback on the packaged backupninja.conf.
+# if the param is still not found fallback to the default.
 function getconf() {
+   ret=""
    CURRENT_PARAM=$1
-   ret=`@AWK@ -f $libdirectory/parseini S=$CURRENT_SECTION P=$CURRENT_PARAM $CURRENT_CONF_FILE`
+
+   # check if conf.d directory exists
+   if [ -d "$CURRENT_CONF_D_DIR" ]; then
+      CURRENT_CONF_D_FILES=$CURRENT_CONF_D_DIR/*.conf
+      # iterate over all *.conf files in conf.d dir
+      for CURRENT_CONF_D_FILE in $CURRENT_CONF_D_FILES; do
+         # retrieve param from file
+         ret=`@AWK@ -f $libdirectory/parseini S=$CURRENT_SECTION P=$CURRENT_PARAM $CURRENT_CONF_D_FILE`
+         # exit the iteration if the param is set
+         if [ -n "$ret" ]; then
+            break
+         fi
+      done
+   fi
+
+   # after exiting the loop caused by a not set param parse the packaged backupninja.conf
+   if [ "$ret" == "" ]; then
+      ret=$(@AWK@ -f $libdirectory/parseini S=$CURRENT_SECTION P=$CURRENT_PARAM $CURRENT_CONF_FILE)
+   fi
+
    # if nothing is returned, set the default
    if [ "$ret" == "" -a "$2" != "" ]; then
       ret="$2"
