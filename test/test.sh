@@ -36,15 +36,10 @@ mount -t tmpfs tmpfs "$TMPDIR"
 mount -t tmpfs tmpfs /var/backups
 
 # Run actual tests
-if [ -z "$1" ]; then
-    for t in "$(dirname "$0")"/*.bats; do
-        echo "# $(basename -s .bats "$t")"
-        bats "$t"
-        echo
-    done
-else
-    echo "# $1"
+if [ -n "$1" ]; then
     bats "$(dirname "$0")/${1}.bats"
+else
+    bats "$(dirname "$0")"
 fi
 
 
