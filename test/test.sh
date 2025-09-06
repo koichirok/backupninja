@@ -26,10 +26,6 @@ TMPDIR=$(mktemp -t -d bntest.XXXXXX)
 chmod a+rX "$TMPDIR"
 export TMPDIR
 
-# Create temporary user
-useradd ci_user
-echo "root: ci_user" >> /etc/aliases
-
 # Run actual tests
 if [ -n "$1" ]; then
     bats "$(dirname "$0")/${1}.bats"

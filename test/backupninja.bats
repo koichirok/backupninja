@@ -2,6 +2,8 @@ load common
 
 begin_backupninja() {
     install_pkgs prometheus-node-exporter
+    useradd ci_user
+    echo "root: ci_user" >> /etc/aliases
 }
 
 teardown_backupninja() {
