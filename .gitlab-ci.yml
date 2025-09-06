@@ -31,6 +31,9 @@ test:
   services:
     - name: registry.0xacab.org/liberate/backupninja/tests/sshd:latest
       alias: backupserver
+  parallel:
+    matrix:
+      - HANDLER: [ 'backupninja', 'borg', 'dup', 'mysql', 'pgsql', 'rdiff', 'restic', 'rsync', 'sh', 'sys', 'tar' ]
   before_script:
     - apt-get update -qq
     - DEBIAN_FRONTEND=noninteractive apt-get install -y openssh-client sshpass
@@ -48,6 +51,6 @@ test:
       EOF
     - ssh sshuser@backupserver "echo 1"
   script:
-    - ./test/test.sh
+    - ./test/test.sh $HANDLER
   rules:
     - if: $CI_COMMIT_BRANCH
