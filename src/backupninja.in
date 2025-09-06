@@ -326,6 +326,8 @@ function process_action() {
    elif [ "$when" == "hourly" ]; then
       info ">>>> starting action $file (because 'when = hourly')"
       run="yes"
+   elif [ "$when" == "manual" ]; then
+      debug ">>>> skipping $file because the 'when' configuration is set to manual"
    else
       IFS=$'\t\n'
       for w in $when; do
