@@ -1,10 +1,13 @@
 load common
 
 begin_rdiff() {
-    install_pkgs rdiff-backup cstream
+    command -v rdiff-backup >/dev/null || \
+        install_pkgs rdiff-backup cstream
     if [ ! -d "$BN_SRCDIR" ]; then
         make_rootfs testing "$BN_SRCDIR"
     fi
+
+    remote_install_pkgs rdiff-backup
 }
 
 setup_rdiff() {

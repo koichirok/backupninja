@@ -1,9 +1,11 @@
 load common
 
 begin_backupninja() {
-    install_pkgs prometheus-node-exporter
+    install_pkgs faketime mailutils prometheus-node-exporter rsync
     useradd ci_user
     echo "root: ci_user" >> /etc/aliases
+
+    remote_install_pkgs rsync
 }
 
 teardown_backupninja() {

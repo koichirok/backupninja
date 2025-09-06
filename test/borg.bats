@@ -5,6 +5,8 @@ begin_borg() {
     if [ ! -d "$BN_SRCDIR" ]; then
         make_rootfs testing "$BN_SRCDIR"
     fi
+
+    remote_install_pkgs borgbackup
 }
 
 setup_borg() {

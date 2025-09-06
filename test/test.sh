@@ -19,7 +19,7 @@ fi
 
 # Install basic test dependencies
 DEBIAN_FRONTEND=noninteractive \
-    apt install -y bats mailutils faketime crudini rsync
+    apt-get install -yqq --no-recommends bats crudini mailutils
 
 # Create a temporary base directory
 TMPDIR=$(mktemp -t -d bntest.XXXXXX)

@@ -137,6 +137,10 @@ remote_command() {
     ssh "${BN_REMOTEUSER}@${BN_REMOTEHOST}" "$1"
 }
 
+remote_command_root() {
+    ssh "root@${BN_REMOTEHOST}" "$1"
+}
+
 remote_background_command() {
     ssh -f "${BN_REMOTEUSER}@${BN_REMOTEHOST}" "$1"
 }
@@ -243,7 +247,11 @@ makegpgkeys() {
 }
 
 install_pkgs() {
-    TMPDIR=/tmp DEBIAN_FRONTEND=noninteractive apt-get -qq install $@
+    TMPDIR=/tmp DEBIAN_FRONTEND=noninteractive apt-get -qq install "$@"
+}
+
+remote_install_pkgs() {
+    sshpass -e ssh root@backupserver "DEBIAN_FRONTEND=noninteractive apt-get -qq install $*"
 }
 
 make_rootfs() {
