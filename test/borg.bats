@@ -5,6 +5,8 @@ begin_borg() {
     if [ ! -d "$BN_SRCDIR" ]; then
         make_rootfs testing "$BN_SRCDIR"
     fi
+
+    remote_install_pkgs borgbackup
 }
 
 setup_borg() {
@@ -271,12 +273,12 @@ finish_borg() {
     greplog 'Debug: executing borg create$' "\bssh://${BN_REMOTEUSER}@${BN_REMOTEHOST}${BN_BACKUPDIR}/testborg::"
 
     # defined parameter
-    setconfig dest port 7722
+    setconfig dest port 2222
     setconfig dest user "$BN_REMOTEUSER"
     setconfig dest host "$BN_REMOTEHOST"
     testaction
-    greplog "Debug: ssh\s\+-o PasswordAuthentication=no ${BN_REMOTEHOST} -p 7722 -l ${BN_REMOTEUSER} 'echo -n 1'"
-    greplog 'Debug: executing borg create$' "\bssh://${BN_REMOTEUSER}@${BN_REMOTEHOST}:7722${BN_BACKUPDIR}/testborg::"
+    greplog "Debug: ssh\s\+-o PasswordAuthentication=no ${BN_REMOTEHOST} -p 2222 -l ${BN_REMOTEUSER} 'echo -n 1'"
+    greplog 'Debug: executing borg create$' "\bssh://${BN_REMOTEUSER}@${BN_REMOTEHOST}:2222${BN_BACKUPDIR}/testborg::"
 }
 
 @test "check config parameter dest/directory" {

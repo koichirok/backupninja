@@ -1,10 +1,10 @@
 setup() {
 
     # declare some constants
-    readonly BN_REMOTEUSER="vagrant"
-    readonly BN_REMOTEHOST="bntest1"
-    readonly BN_BACKUPDIR="/var/backups"
-    readonly BN_SRCDIR="/var/cache/bntest"
+    readonly BN_REMOTEUSER="${BN_REMOTEUSER:-ci_user}"
+    readonly BN_REMOTEHOST="${BN_REMOTEHOST:-bntest1}"
+    readonly BN_BACKUPDIR="${BN_BACKUPDIR:-/var/backups}"
+    readonly BN_SRCDIR="${BN_SRCDIR:-/var/cache/bntest}"
 
     # Write a basic backupninja config file
     cat << EOF > "${BATS_TMPDIR}/backupninja.conf"
@@ -137,6 +137,10 @@ remote_command() {
     ssh "${BN_REMOTEUSER}@${BN_REMOTEHOST}" "$1"
 }
 
+remote_command_root() {
+    ssh "root@${BN_REMOTEHOST}" "$1"
+}
+
 remote_background_command() {
     ssh -f "${BN_REMOTEUSER}@${BN_REMOTEHOST}" "$1"
 }
@@ -146,12 +150,12 @@ cleanup_backups() {
     for c in "$@"; do
         case "$c" in
             "local")
-                grep -q "^tmpfs $BN_BACKUPDIR" /proc/mounts && umount "$BN_BACKUPDIR"
-                mount -t tmpfs tmpfs "$BN_BACKUPDIR"
+                rm -rf "$BN_BACKUPDIR"
+                mkdir -p "$BN_BACKUPDIR"
                 ;;
             "remote")
-                run remote_command "grep -q \"^tmpfs $BN_BACKUPDIR\" /proc/mounts && sudo umount \"$BN_BACKUPDIR\""
-                remote_command "sudo mount -t tmpfs tmpfs \"$BN_BACKUPDIR\""
+                run remote_command "rm -rf \"$BN_BACKUPDIR\""
+                remote_command "mkdir -p \"$BN_BACKUPDIR\""
                 ;;
         esac
     done
@@ -243,7 +247,11 @@ makegpgkeys() {
 }
 
 install_pkgs() {
-    TMPDIR=/tmp DEBIAN_FRONTEND=noninteractive apt-get -qq install $@
+    TMPDIR=/tmp DEBIAN_FRONTEND=noninteractive apt-get -qq install "$@"
+}
+
+remote_install_pkgs() {
+    sshpass -e ssh root@backupserver "DEBIAN_FRONTEND=noninteractive apt-get -qq install $*"
 }
 
 make_rootfs() {

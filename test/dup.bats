@@ -1,10 +1,14 @@
 load common
 
 begin_dup() {
-    install_pkgs duplicity trickle
+    command -v duplicity >/dev/null || \
+        install_pkgs duplicity trickle
+
     if [ ! -d /var/cache/bntest ]; then
         make_rootfs testing "$BN_SRCDIR"
     fi
+
+    remote_install_pkgs duplicity
 }
 
 setup_dup() {

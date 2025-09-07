@@ -1,10 +1,13 @@
 load common
 
 begin_rsync() {
-    install_pkgs rsync
+    command -v rsync >/dev/null || \
+        install_pkgs rsync
     if [ ! -d "$BN_SRCDIR" ]; then
         make_rootfs testing "$BN_SRCDIR"
     fi
+
+    remote_install_pkgs rsync
 }
 
 setup_rsync() {

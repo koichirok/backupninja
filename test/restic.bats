@@ -5,8 +5,11 @@ begin_restic() {
         make_rootfs testing "$BN_SRCDIR"
     fi
 
-    [ -x "$(which restic)" ] || apt -qq install restic
+    command -v restic >/dev/null || \
+        install_pkgs restic
 
+    remote_install_pkgs restic wget
+    remote_command_root "wget -q https://github.com/restic/rest-server/releases/download/v0.14.0/rest-server_0.14.0_linux_amd64.tar.gz -O - | tar -xz -C /usr/local/bin --strip-components=1"
     remote_background_command "/usr/local/bin/rest-server --no-auth --path ${BN_BACKUPDIR}"
 }
 
