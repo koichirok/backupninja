@@ -19,7 +19,7 @@ fi
 
 # Install basic test dependencies
 DEBIAN_FRONTEND=noninteractive \
-    apt-get install -yqq --no-recommends bats crudini mailutils
+    apt-get install -yqq --no-install-recommends bats crudini default-mta mailutils
 
 # Create a temporary base directory
 TMPDIR=$(mktemp -t -d bntest.XXXXXX)
