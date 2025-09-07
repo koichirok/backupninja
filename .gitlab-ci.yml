@@ -28,6 +28,7 @@ test:
   variables:
     BN_REMOTEHOST: backupserver
     BN_REMOTEUSER: sshuser
+    BN_SRCDIR: $CI_PROJECT_DIR/.backupdata
     SSHPASS: root
   services:
     - name: registry.0xacab.org/liberate/backupninja/tests/sshd:latest
@@ -35,6 +36,9 @@ test:
   parallel:
     matrix:
       - HANDLER: [ 'backupninja', 'borg', 'dup', 'mysql', 'pgsql', 'rdiff', 'restic', 'rsync', 'sh', 'sys', 'tar' ]
+  cache:
+    paths:
+      - .backupdata
   before_script:
     - apt-get update -qq
     - DEBIAN_FRONTEND=noninteractive apt-get install -y openssh-client sshpass

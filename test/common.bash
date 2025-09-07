@@ -3,8 +3,8 @@ setup() {
     # declare some constants
     readonly BN_REMOTEUSER="${BN_REMOTEUSER:-ci_user}"
     readonly BN_REMOTEHOST="${BN_REMOTEHOST:-bntest1}"
-    readonly BN_BACKUPDIR="/var/backups"
-    readonly BN_SRCDIR="/var/cache/bntest"
+    readonly BN_BACKUPDIR="${BN_BACKUPDIR:-/var/backups}"
+    readonly BN_SRCDIR="${BN_SRCDIR:-/var/cache/bntest}"
 
     # Write a basic backupninja config file
     cat << EOF > "${BATS_TMPDIR}/backupninja.conf"
