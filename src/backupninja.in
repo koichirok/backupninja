@@ -541,6 +541,7 @@ getconf PGSQLDUMPALL /usr/bin/pg_dumpall
 getconf PGSQLUSER postgres
 getconf GZIP /bin/gzip
 getconf GZIP_OPTS --rsyncable
+getconf GZIP_EXT gz
 getconf RSYNC /usr/bin/rsync
 getconf DSYNC /usr/bin/dsync
 getconf DOVEADM /usr/bin/doveadm

@@ -64,7 +64,7 @@ fi
 # if $databases = all, use pg_dumpall
 if [ "$databases" == "all" ]; then
    if [ "$compress" == "yes" ]; then
-      execstr="su - $PGSQLUSER -s /bin/bash -c \"set -o pipefail ; $PGSQLDUMPALL | $GZIP $GZIP_OPTS > '$backupdir/${localhost}-all.sql.gz'\""
+      execstr="su - $PGSQLUSER -s /bin/bash -c \"set -o pipefail ; $PGSQLDUMPALL | $GZIP $GZIP_OPTS > '$backupdir/${localhost}-all.sql.$GZIP_EXT'\""
    else
       execstr="su - $PGSQLUSER -c \"$PGSQLDUMPALL > '$backupdir/${localhost}-all.sql'\""
    fi
@@ -89,7 +89,7 @@ else
    if [ "$dumpglobals" = "yes" ]; then
       globalscmd=""
       if [ "$compress" == "yes" ]; then
-         globalscmd="set -o pipefail ; $PGSQLDUMPALL -g | $GZIP $GZIP_OPTS > '$backupdir/globals.sql.gz'"
+         globalscmd="set -o pipefail ; $PGSQLDUMPALL -g | $GZIP $GZIP_OPTS > '$backupdir/globals.sql.$GZIP_EXT'"
       else
          globalscmd="$PGSQLDUMPALL -g > '$backupdir/globals.sql'"
       fi
@@ -122,7 +122,7 @@ else
       dumpcmd=""
       globalscmd=""
       if [ "$compress" == "yes" ]; then
-         dumpcmd="set -o pipefail ; $PGSQLDUMP --format=$format ${disablecustomcompress} $db | $GZIP $GZIP_OPTS > '$backupdir/${db}.${dumpext}.gz'"
+         dumpcmd="set -o pipefail ; $PGSQLDUMP --format=$format ${disablecustomcompress} $db | $GZIP $GZIP_OPTS > '$backupdir/${db}.${dumpext}.$GZIP_EXT'"
       else
          dumpcmd="$PGSQLDUMP --format=$format ${disablecustomcompress} $db > '$backupdir/${db}.${dumpext}'"
       fi
