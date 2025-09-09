@@ -135,7 +135,7 @@ function eval_config {
 
   setsection source
   getconf from local
-  getconf rsync $RSYNC
+  getconf rsync "$RSYNC"
   getconf rsync_options "-av --delete --recursive"
 
   if [ "$from" == "remote" ]; then
@@ -236,7 +236,7 @@ function eval_config {
   fi
 
   if [ ! -z "$log" ]; then
-    mkdir -p `dirname $log`
+    mkdir -p "`dirname "$log"`"
   fi
 
   if [ "$format" == "short" ]; then
@@ -262,7 +262,7 @@ function eval_config {
 
   if [ "$from" == "remote" ] || [ "$dest" == "remote" ]; then
     if [ "$testconnect" == "yes" ] && [ "$protocol" == "ssh" ]; then
-      test_connect $host $port $user $id_file
+      test_connect "$host" "$port" "$user" "$id_file"
     fi
   fi
 
@@ -270,7 +270,7 @@ function eval_config {
     ssh_cmd="$ssh_cmd -S $tmp/%r@%h:%p"
   fi
 
-  if [ $enable_mv_timestamp_bug == "yes" ]; then
+  if [ "$enable_mv_timestamp_bug" == "yes" ]; then
     mv=move_files
   fi
 
@@ -294,40 +294,40 @@ function rotate_short {
   local dest
   local folder="$1"
   local keep="$2"
-  local metadata="`dirname $folder`/metadata"
+  local metadata="`dirname "$folder"`/metadata"
 
   # No rotations
   if [[ "$keep" -lt 1 ]]; then
      return
   fi
 
-  if [ -d $folder.$keep ]; then
-    $nice $mv /$folder.$keep /$folder.tmp
+  if [ -d "$folder.$keep" ]; then
+    $nice $mv "/$folder.$keep" "/$folder.tmp"
   fi
 
   for ((n=$[$keep - 1]; n >= 0; n--)); do
-    if [ -d $folder.$n ]; then
+    if [ -d "$folder.$n" ]; then
       dest=$[$n + 1]
-      $nice $mv /$folder.$n /$folder.$dest
-      $touch /$folder.$dest
-      mkdir -p $metadata/`basename $folder`.$dest
-      date +%c%n%s > $metadata/`basename $folder`.$dest/rotated
+      $nice $mv "/$folder.$n" "/$folder.$dest"
+      $touch "/$folder.$dest"
+      mkdir -p "$metadata/`basename "$folder"`.$dest"
+      date +%c%n%s > "$metadata/`basename "$folder"`.$dest/rotated"
     fi
   done
 
-  if [ -d $folder.tmp ]; then
-    $nice $mv /$folder.tmp /$folder.0
+  if [ -d "$folder.tmp" ]; then
+    $nice $mv "/$folder.tmp" "/$folder.0"
   fi
 
-  if [ -d $folder.1 ]; then
-    $nice $cp -alf /$folder.1/. /$folder.0
+  if [ -d "$folder.1" ]; then
+    $nice "$cp" -alf "/$folder.1/." "/$folder.0"
   fi
 
   # Cleanup orphaned metadata
-  for file in `ls $metadata`; do
-    if [ ! -d "`dirname $folder`/$file" ]; then
+  for file in "$metadata/"*; do
+    if [ ! -d "`dirname "$folder"`/$file" ]; then
       debug "removing orphaned metadata $file"
-      rm -rf $metadata/$file
+      rm -rf "$metadata/$file"
     fi
   done
 
@@ -336,7 +336,7 @@ function rotate_short {
 function rotate_short_remote {
 
   local folder="$1"
-  local metadata="`dirname $folder`/metadata"
+  local metadata="`dirname "$folder"`/metadata"
   local keep="$2"
 
   # No rotations
@@ -384,7 +384,7 @@ function rotate_short_remote {
   fi
   ##### END REMOTE SCRIPT #######
 EOF
-) | (while read a; do passthru $a; done)
+) | (while read a; do passthru "$a"; done)
 
 }
 
@@ -411,24 +411,24 @@ function rotate_long {
     dir="$backuproot/$rottype"
     metadata="$backuproot/metadata/$rottype"
 
-    mkdir -p $metadata.1
-    if [ ! -d $dir.1 ]; then
+    mkdir -p "$metadata.1"
+    if [ ! -d "$dir.1" ]; then
       echo "Debug: $dir.1 does not exist, skipping."
       continue 1
-    elif [ ! -f $metadata.1/created ] && [ ! -f $metadata.1/rotated ]; then
+    elif [ ! -f "$metadata.1/created" ] && [ ! -f "$metadata.1/rotated" ]; then
       warning "Warning: metadata does not exist for $dir.1. This backup may be only partially completed. Skipping rotation."
       continue 1
     fi
 
     # Rotate the current list of backups, if we can.
-    oldest=`find $backuproot -maxdepth 1 -type d -name $rottype'.*' | @SED@ -e 's/^.*\.//' | sort -n | tail -1`
+    oldest=`find "$backuproot" -maxdepth 1 -type d -name $rottype'.*' | @SED@ -e 's/^.*\.//' | sort -n | tail -1`
     [ "$oldest" == "" ] && oldest=0
     for (( i=$oldest; i > 0; i-- )); do
-      if [ -d $dir.$i ]; then
-        if [ -f $metadata.$i/created ]; then
-          created=`tail -1 $metadata.$i/created`
-        elif [ -f $metadata.$i/rotated ]; then
-          created=`tail -1 $metadata.$i/rotated`
+      if [ -d "$dir.$i" ]; then
+        if [ -f "$metadata.$i/created" ]; then
+          created=`tail -1 "$metadata.$i/created"`
+        elif [ -f "$metadata.$i/rotated" ]; then
+          created=`tail -1 "$metadata.$i/rotated"`
         else
           created=0
         fi
@@ -440,13 +440,13 @@ function rotate_long {
         cutoff_time=$(( now - (seconds*(i-1)) ))
         if [ ! $created -gt $cutoff_time ]; then
           next=$(( i + 1 ))
-          if [ ! -d $dir.$next ]; then
+          if [ ! -d "$dir.$next" ]; then
             debug "$rottype.$i --> $rottype.$next"
-            $nice mv $dir.$i $dir.$next
-            mkdir -p $metadata.$next
-            date +%c%n%s > $metadata.$next/rotated
-            if [ -f $metadata.$i/created ]; then
-              $nice mv $metadata.$i/created $metadata.$next
+            $nice mv "$dir.$i" "$dir.$next"
+            mkdir -p "$metadata.$next"
+            date +%c%n%s > "$metadata.$next/rotated"
+            if [ -f "$metadata.$i/created" ]; then
+              $nice mv "$metadata.$i/created" "$metadata.$next"
             fi
           else
             debug "skipping rotation of $dir.$i because $dir.$next already exists."
@@ -459,54 +459,54 @@ function rotate_long {
   done
 
   max=$((keepdaily+1))
-  if [ $keepweekly -gt 0 -a -d $backuproot/daily.$max -a ! -d $backuproot/weekly.1 ]; then
+  if [ "$keepweekly" -gt 0 -a -d "$backuproot/daily.$max" -a ! -d "$backuproot/weekly.1" ]; then
     debug "daily.$max --> weekly.1"
-    $nice mv $backuproot/daily.$max $backuproot/weekly.1
-    mkdir -p $backuproot/metadata/weekly.1
+    $nice mv "$backuproot/daily.$max" "$backuproot/weekly.1"
+    mkdir -p "$backuproot/metadata/weekly.1"
     # Update increment folder date and setup metadata
-    $touch $backuproot/weekly.1
-    date +%c%n%s > $backuproot/metadata/weekly.1/rotated
-    #if [ -f $backuproot/metadata/daily.$max/created  ]; then
-    #   $nice mv $backuproot/metadata/daily.$max/created $backuproot/metadata/weekly.1/
+    $touch "$backuproot/weekly.1"
+    date +%c%n%s > "$backuproot/metadata/weekly.1/rotated"
+    #if [ -f "$backuproot/metadata/daily.$max/created"  ]; then
+    #   $nice mv "$backuproot/metadata/daily.$max/created" "$backuproot/metadata/weekly.1/"
     #fi
   fi
 
   max=$((keepweekly+1))
-  if [ $keepmonthly -gt 0 -a -d $backuproot/weekly.$max -a ! -d $backuproot/monthly.1 ]; then
+  if [ "$keepmonthly" -gt 0 -a -d "$backuproot/weekly.$max" -a ! -d "$backuproot/monthly.1" ]; then
     debug "weekly.$max --> monthly.1"
-    $nice mv $backuproot/weekly.$max $backuproot/monthly.1
-    mkdir -p $backuproot/metadata/monthly.1
+    $nice mv "$backuproot/weekly.$max" "$backuproot/monthly.1"
+    mkdir -p "$backuproot/metadata/monthly.1"
     # Update increment folder date and setup metadata
-    $touch $backuproot/monthly.1
-    date +%c%n%s > $backuproot/metadata/monthly.1/rotated
-    #if [ -f $backuproot/metadata/weekly.$max/created  ]; then
-    #   $nice mv $backuproot/metadata/weekly.$max/created $backuproot/metadata/weekly.1/
+    $touch "$backuproot/monthly.1"
+    date +%c%n%s > "$backuproot/metadata/monthly.1/rotated"
+    #if [ -f "$backuproot/metadata/weekly.$max/created"  ]; then
+    #   $nice mv "$backuproot/metadata/weekly.$max/created" "$backuproot/metadata/weekly.1/"
     #fi
   fi
 
   for rottype in daily weekly monthly; do
     max=$((keep${rottype}+1))
     dir="$backuproot/$rottype"
-    oldest=`find $backuproot -maxdepth 1 -type d -name $rottype'.*' | @SED@ -e 's/^.*\.//' | sort -n | tail -1`
+    oldest=`find "$backuproot" -maxdepth 1 -type d -name $rottype'.*' | @SED@ -e 's/^.*\.//' | sort -n | tail -1`
     [ "$oldest" == "" ] && oldest=0
     # if we've rotated the last backup off the stack, remove it.
     for (( i=$oldest; i >= $max; i-- )); do
-      if [ -d $dir.$i ]; then
-        if [ -d $backuproot/rotate.tmp ]; then
+      if [ -d "$dir.$i" ]; then
+        if [ -d "$backuproot/rotate.tmp" ]; then
           debug "removing rotate.tmp"
-          $nice rm -rf $backuproot/rotate.tmp
+          $nice rm -rf "$backuproot/rotate.tmp"
         fi
         debug "moving $rottype.$i to rotate.tmp"
-        $nice mv $dir.$i $backuproot/rotate.tmp
+        $nice mv "$dir.$i" "$backuproot/rotate.tmp"
       fi
     done
   done
 
   # Cleanup orphaned metadata
-  for file in `ls $backuproot/metadata`; do
+  for file in "$backuproot/metadata/"*; do
     if [ ! -d "$backuproot/$file" ]; then
       debug "removing orphaned metadata $file"
-      rm -rf $backuproot/metadata/$file
+      rm -rf "$backuproot/metadata/$file"
     fi
   done
 
@@ -638,7 +638,7 @@ function rotate_long_remote {
   done
   ##### END REMOTE SCRIPT #######
 EOF
-) | (while read a; do passthru $a; done)
+) | (while read a; do passthru "$a"; done)
 
 }
 
@@ -650,39 +650,39 @@ function setup_long_dirs {
   local tmpdir="$destdir/rotate.tmp"
   local metadata="$destdir/metadata/$backuptype.1"
 
-  if [ ! -d $destdir ]; then
+  if [ ! -d "$destdir" ]; then
     echo "Creating destination directory $destdir..."
-    mkdir -p $destdir
+    mkdir -p "$destdir"
   fi
 
-  if [ -d $dir.1 ]; then
-    if [ -f $metadata/created ]; then
+  if [ -d "$dir.1" ]; then
+    if [ -f "$metadata/created" ]; then
       echo "Warning: $dir.1 already exists. Overwriting contents."
     else
       echo "Warning: we seem to be resuming a partially written $dir.1"
     fi
   else
-    if [ -d $tmpdir ]; then
-      mv $tmpdir $dir.1
+    if [ -d "$tmpdir" ]; then
+      mv "$tmpdir" "$dir.1"
       if [ $? == 1 ]; then
         fatal "Could not move $tmpdir to $dir.1 on host $host"
       fi
     else
-      mkdir --parents $dir.1
+      mkdir --parents "$dir.1"
       if [ $? == 1 ]; then
         fatal "Could not create directory $dir.1 on host $host"
       fi
     fi
-    if [ -d $dir.2 ]; then
+    if [ -d "$dir.2" ]; then
       echo "Debug: update links $backuptype.2 --> $backuptype.1"
-      cp -alf $dir.2/. $dir.1
+      cp -alf "$dir.2/." "$dir.1"
       #if [ $? == 1 ]; then
       #  fatal "Could not create hard links to $dir.1 on host $host"
       #fi
     fi
   fi
-  [ -f $metadata/created ] && rm $metadata/created
-  [ -f $metadata/rotated ] && rm $metadata/rotated
+  [ -f "$metadata/created" ] && rm "$metadata/created"
+  [ -f "$metadata/rotated" ] && rm "$metadata/rotated"
 
 }
 
@@ -735,23 +735,23 @@ function setup_long_dirs_remote {
   [ -f $metadata/rotated ] && rm $metadata/rotated
   ##### END REMOTE SCRIPT #######
 EOF
-) | (while read a; do passthru $a; done)
+) | (while read a; do passthru "$a"; done)
 
 }
 
 function move_files {
 
   ref=$tmp/makesnapshot-mymv-$$;
-  $touch -r $1 $ref;
-  $mv $1 $2;
-  $touch -r $ref $2;
-  $rm $ref;
+  $touch -r "$1" "$ref";
+  $mv "$1" "$2";
+  $touch -r "$ref" "$2";
+  $rm "$ref";
 
 }
 
 function prepare_storage {
 
-  section="`basename $SECTION`"
+  section="`basename "$SECTION"`"
 
   if [ "$format" == "short" ]; then
 
@@ -759,25 +759,25 @@ function prepare_storage {
 
     if [ ! "$test" ]; then
        info "Rotating $backupdir/$SECTION..."
-       echo "Rotating $backupdir/$SECTION..." >> $log
+       echo "Rotating $backupdir/$SECTION..." >> "$log"
 
        if [ "$dest" == "remote" ]; then
-          rotate_short_remote $backupdir/$SECTION/$section $keep
+          rotate_short_remote "$backupdir/$SECTION/$section" "$keep"
        else
-          rotate_short $backupdir/$SECTION/$section $keep
+          rotate_short "$backupdir/$SECTION/$section" "$keep"
           if [ ! -d "$backupdir/$SECTION/$section.0" ]; then
-             mkdir -p $backupdir/$SECTION/$section.0
+             mkdir -p "$backupdir/$SECTION/$section.0"
           fi
        fi
     fi
 
   elif [ "$format" == "long" ]; then
 
-    if [ $keepdaily -gt 0 ]; then
+    if [ "$keepdaily" -gt 0 ]; then
       btype=daily
-    elif [ $keepweekly -gt 0 ]; then
+    elif [ "$keepweekly" -gt 0 ]; then
       btype=weekly
-    elif [ $keepmonthly -gt 0 ]; then
+    elif [ "$keepmonthly" -gt 0 ]; then
       btype=monthly
     else
       fatal "keeping no backups";
@@ -787,14 +787,14 @@ function prepare_storage {
 
     if [ ! "$test" ]; then
        info "Rotating $backupdir/$SECTION/..."
-       echo "Rotating $backupdir/$SECTION/..." >> $log
+       echo "Rotating $backupdir/$SECTION/..." >> "$log"
 
        if [ "$dest" == "remote" ]; then
-          rotate_long_remote $backupdir/$SECTION
-          setup_long_dirs_remote $backupdir/$SECTION $btype
+          rotate_long_remote "$backupdir/$SECTION"
+          setup_long_dirs_remote "$backupdir/$SECTION" $btype
        else
-          rotate_long $backupdir/$SECTION
-          setup_long_dirs $backupdir/$SECTION $btype
+          rotate_long "$backupdir/$SECTION"
+          setup_long_dirs "$backupdir/$SECTION" $btype
        fi
     fi
 
@@ -803,7 +803,7 @@ function prepare_storage {
      # create $SECTION directories, but not $backupdir
      if [ "$dest" == "local" ]; then
         if [ -d "$backupdir" ]; then
-           mkdir --parents $backupdir/$SECTION
+           mkdir --parents "$backupdir"/"$SECTION"
         else
            fatal "The destination $backupdir does not exist"
            exit 1
@@ -822,7 +822,7 @@ function prepare_storage {
            fi
            ##### END REMOTE SCRIPT #######
 EOF
-) | (while read a; do passthru $a; done)
+) | (while read a; do passthru "$a"; done)
      fi
 
      suffix=""
@@ -874,7 +874,7 @@ function set_batch_mode {
       fatal "Batch file not found: $batch_file"
     fi
   elif [ "$batch" == "write" ]; then
-    mkdir -p `dirname $batch_file`
+    mkdir -p "`dirname "$batch_file"`"
     batch_option="--write-batch=$batch_file"
   fi
 
@@ -886,17 +886,17 @@ function update_metadata {
   local folder
 
   if [ "$dest" == "local" ]; then
-    metadata="`dirname $dest_path`/metadata/`basename $dest_path`"
-    mkdir -p $metadata
+    metadata="`dirname "$dest_path"`/metadata/`basename "$dest_path"`"
+    mkdir -p "$metadata"
     # Use the backup start time and not the time the backup was
     # finished, otherwise daily rotations might not take place.
     # If we used backup end time, in the next handler run
     # we might not have $now - $created >= 24:00
-    echo "$starttime" > $metadata/created
-    $touch $backupdir/$SECTION/$suffix
+    echo "$starttime" > "$metadata/created"
+    $touch "$backupdir/$SECTION/$suffix"
   else
-    folder="`echo $dest_path | cut -d : -f 2`"
-    metadata="`dirname $folder`/metadata/`basename $folder`"
+    folder="`echo "$dest_path" | cut -d : -f 2`"
+    metadata="`dirname "$folder"`/metadata/`basename "$folder"`"
 
 (
   $ssh_cmd <<EOF
@@ -909,7 +909,7 @@ function update_metadata {
     echo "$starttime" > $metadata/created
     ##### END REMOTE SCRIPT #######
 EOF
-) | (while read a; do passthru $a; done)
+) | (while read a; do passthru "$a"; done)
 
   fi
 
@@ -991,7 +991,7 @@ function set_rsync_options {
         fatal "SSH identity file $id_file not found."
       else
         debug RSYNC_RSH=\"$ssh_cmd_base\"
-        echo RSYNC_RSH=\"$ssh_cmd_base\" >> $log
+        echo RSYNC_RSH=\"$ssh_cmd_base\" >> "$log"
         export RSYNC_RSH="$ssh_cmd_base"
       fi
     fi
@@ -1013,7 +1013,7 @@ function stop_services {
   if [ ! -z "$service" ]; then
     for daemon in $service; do
       info "Stopping service $daemon..."
-      $initscripts/$daemon stop
+      "$initscripts/$daemon" stop
     done
   fi
 
@@ -1026,7 +1026,7 @@ function start_services {
   if [ ! -z "$service" ]; then
     for daemon in $service; do
       info "Starting service $daemon..."
-      $initscripts/$daemon start
+      "$initscripts/$daemon" start
     done
   fi
 
@@ -1039,7 +1039,7 @@ function mount_rw {
   if [ "$dest" == "local" ]; then
     if [ "$read_only" == "1" ] || [ "$read_only" == "yes" ]; then
       if [ -d "$mountpoint" ]; then
-        mount -o remount,rw $mountpoint
+        mount -o remount,rw "$mountpoint"
         if (($?)); then
           fatal "Could not mount $mountpoint"
         fi
@@ -1055,7 +1055,7 @@ function mount_ro {
 
   if [ "$dest" == "local" ]; then
     if [ "$read_only" == "1" ] || [ "$read_only" == "yes" ]; then
-      mount -o remount,ro $mountpoint
+      mount -o remount,ro "$mountpoint"
     fi
   fi
 
@@ -1067,12 +1067,12 @@ function run_fsck {
 
   if [ "$dest" == "local" ]; then
     if [ "$fscheck" == "1" ] || [ "$fscheck" == "yes" ]; then
-      umount $mountpoint
+      umount "$mountpoint"
       if (($?)); then
         warning "Could not umount $mountpoint to run fsck"
       else
-        $nice $fsck -v -y $partition >> $log
-        mount $mountpoint
+        $nice "$fsck" -v -y "$partition" >> "$log"
+        mount "$mountpoint"
       fi
     fi
   fi
@@ -1150,9 +1150,14 @@ stop_services
 mount_rw
 
 starttime="`date +%c%n%s`"
-echo "Starting backup at `echo "$starttime" | head -n 1`" >> $log
+echo "Starting backup at `echo "$starttime" | head -n 1`" >> "$log"
 
-for SECTION in $include; do
+SAVEIFS=$IFS
+IFS=$(echo -en "\n\b")
+j=0 ; for dir in $include ; do include_array[${j}]=$dir ; ((j++)) ; done
+IFS=$SAVEIFS
+
+for SECTION in "${include_array[@]}"; do
 
   prepare_storage
   set_orig
@@ -1161,10 +1166,10 @@ for SECTION in $include; do
   set_dest
 
   info "Syncing $SECTION on $dest_path..."
-  command="$rsync ${rsync_options[@]} --delete-excluded $filelist_flag $excludes $batch_option $orig $dest_path"
+  command="$rsync ${rsync_options[@]} --delete-excluded $filelist_flag $excludes $batch_option '$orig' '$dest_path'"
   debug $nice su -c "$command"
   set_pipefail
-  $nice su -c "$command" | tee -a $log
+  $nice su -c "$command" | tee -a "$log"
 
   check_rsync_exit_status $?
   restore_pipefail
@@ -1177,5 +1182,5 @@ run_fsck
 start_services
 end_mux
 
-echo "Finished backup at `date`" >> $log
+echo "Finished backup at `date`" >> "$log"
 
