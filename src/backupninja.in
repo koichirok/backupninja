@@ -513,7 +513,7 @@ setfile $conffile
 getconf configdirectory @CFGDIR@/backup.d
 getconf scriptdirectory @datadir@
 getconf reportdirectory
-getconf reportprom
+getconf reportprom no
 getconf prom_textfile_dir /var/lib/prometheus/node-exporter
 getconf reportemail
 getconf reporthost
@@ -606,7 +606,7 @@ done
 ## reporting
 
 if [ $actions_run == 0 ]; then doit=0
-elif [ "$reportemail" == "" -a "$reportprom" == "" ]; then doit=0
+elif [ "$reportemail" == "" -a "$reportprom" == "no" ]; then doit=0
 elif [ $fatals != 0 ]; then doit=1
 elif [ $errors != 0 ]; then doit=1
 elif [ $halts != 0 ]; then doit=1
@@ -616,7 +616,7 @@ else doit=0
 fi
 
 if [ $doit == 1 ]; then
-   if [ ! -z "$reportprom" ]; then
+   if [ "$reportprom" != "no" ]; then
       if [ -d "$prom_textfile_dir" ]; then
          debug "reporting to prometheus"
          hostname=`hostname`
