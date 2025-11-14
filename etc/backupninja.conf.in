@@ -15,7 +15,7 @@ loglevel = 4
 
 # Produce prometheus metrics of backup status (default = no).
 # Requires `prometheus-node-exporter` to be installed
-reportprom = false
+reportprom = no
 
 # send a summary of the backup status to
 # this email address:
