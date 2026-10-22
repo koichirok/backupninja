@@ -3,16 +3,16 @@ load common
 setup_transport() {
     libdirectory="${BATS_TEST_DIRNAME}/../lib"
     . "$libdirectory/tools"
-    setfile "${BATS_TMPDIR}/transport.conf"
+    setfile "${BATS_TEST_TMPDIR}/transport.conf"
     setsection ""
     debug() { :; }
     fatal() { echo "Fatal: $*" >&2; exit 2; }
-    mkdir -p "${BATS_TMPDIR}/bin"
-    export PATH="${BATS_TMPDIR}/bin:$PATH"
+    mkdir -p "${BATS_TEST_TMPDIR}/bin"
+    export PATH="${BATS_TEST_TMPDIR}/bin:$PATH"
 }
 
 write_mock_runtime() {
-    cat > "${BATS_TMPDIR}/bin/$1" <<'EOF'
+    cat > "${BATS_TEST_TMPDIR}/bin/$1" <<'EOF'
 #!/bin/bash
 printf '%s\n' "$@" >> "$TRANSPORT_LOG"
 if [ "$1" = compose ] && [ "$2" = config ] && [ "$3" = --services ]; then
@@ -21,11 +21,11 @@ elif [ "$1" = compose ] && [ "$2" = ps ] && [ "$3" = -q ]; then
     echo container-id
 fi
 EOF
-    chmod +x "${BATS_TMPDIR}/bin/$1"
+    chmod +x "${BATS_TEST_TMPDIR}/bin/$1"
 }
 
 @test "local transport executes commands without a wrapper" {
-    cat > "${BATS_TMPDIR}/transport.conf" <<EOF
+    cat > "${BATS_TEST_TMPDIR}/transport.conf" <<EOF
 [transport]
 transport = local
 EOF
@@ -38,9 +38,9 @@ EOF
 }
 
 @test "podman transport preserves execution options as arguments" {
-    export TRANSPORT_LOG="${BATS_TMPDIR}/transport.log"
+    export TRANSPORT_LOG="${BATS_TEST_TMPDIR}/transport.log"
     write_mock_runtime podman
-    cat > "${BATS_TMPDIR}/transport.conf" <<EOF
+    cat > "${BATS_TEST_TMPDIR}/transport.conf" <<EOF
 [transport]
 transport = podman
 container = database container
@@ -63,13 +63,13 @@ EOF
 }
 
 @test "docker compose validates the service and wraps commands" {
-    export TRANSPORT_LOG="${BATS_TMPDIR}/transport.log"
+    export TRANSPORT_LOG="${BATS_TEST_TMPDIR}/transport.log"
     write_mock_runtime docker
-    mkdir "${BATS_TMPDIR}/compose project"
-    cat > "${BATS_TMPDIR}/transport.conf" <<EOF
+    mkdir "${BATS_TEST_TMPDIR}/compose project"
+    cat > "${BATS_TEST_TMPDIR}/transport.conf" <<EOF
 [transport]
 transport = docker-compose
-projectdir = ${BATS_TMPDIR}/compose project
+projectdir = ${BATS_TEST_TMPDIR}/compose project
 service = database
 EOF
 
@@ -83,13 +83,13 @@ EOF
 }
 
 @test "docker compose service validation uses exact names" {
-    export TRANSPORT_LOG="${BATS_TMPDIR}/transport.log"
+    export TRANSPORT_LOG="${BATS_TEST_TMPDIR}/transport.log"
     write_mock_runtime docker
-    mkdir "${BATS_TMPDIR}/compose"
-    cat > "${BATS_TMPDIR}/transport.conf" <<EOF
+    mkdir "${BATS_TEST_TMPDIR}/compose"
+    cat > "${BATS_TEST_TMPDIR}/transport.conf" <<EOF
 [transport]
 transport = docker-compose
-projectdir = ${BATS_TMPDIR}/compose
+projectdir = ${BATS_TEST_TMPDIR}/compose
 service = data.*
 EOF
 
@@ -100,26 +100,26 @@ EOF
 }
 
 @test "container transport fetches into an explicit host directory" {
-    export TRANSPORT_LOG="${BATS_TMPDIR}/transport.log"
+    export TRANSPORT_LOG="${BATS_TEST_TMPDIR}/transport.log"
     write_mock_runtime docker
-    cat > "${BATS_TMPDIR}/transport.conf" <<EOF
+    cat > "${BATS_TEST_TMPDIR}/transport.conf" <<EOF
 [transport]
 transport = docker
 container = database
-hostbackupdir = ${BATS_TMPDIR}/host backup
+hostbackupdir = ${BATS_TEST_TMPDIR}/host backup
 EOF
 
     transport_init
     transport_finalize '/var/backups/postgres'
 
-    [ -d "${BATS_TMPDIR}/host backup" ]
+    [ -d "${BATS_TEST_TMPDIR}/host backup" ]
     grep -Fxq cp "$TRANSPORT_LOG"
     grep -Fxq 'database:/var/backups/postgres/.' "$TRANSPORT_LOG"
-    grep -Fxq "${BATS_TMPDIR}/host backup/" "$TRANSPORT_LOG"
+    grep -Fxq "${BATS_TEST_TMPDIR}/host backup/" "$TRANSPORT_LOG"
 }
 
 @test "unsupported transports fail during initialization" {
-    cat > "${BATS_TMPDIR}/transport.conf" <<EOF
+    cat > "${BATS_TEST_TMPDIR}/transport.conf" <<EOF
 [transport]
 transport = teleport
 EOF

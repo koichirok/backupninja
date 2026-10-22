@@ -155,3 +155,20 @@ teardown_pgsql() {
 }
 
 
+@test "transport: dumps through a container runtime and fetches to the host" {
+    mock_container_runtime
+    setconfig databases bntest_v11vJj
+    setconfig compress yes
+    setconfig format plain
+    setconfig backupdir "${BN_BACKUPDIR}/postgres-container"
+    setconfig transport transport podman
+    setconfig transport container bntest-postgres
+    setconfig transport hostbackupdir "${BN_BACKUPDIR}/postgres-host"
+    runaction
+    greplog "Info: Successfully finished dump of pgsql database bntest_v11vJj"
+    not_greplog "Warning:"
+    gzip -tq "${BN_BACKUPDIR}/postgres-host/bntest_v11vJj.sql.gz"
+    grep -q '^exec -i bntest-postgres sh -c su - postgres ' "${BATS_TEST_TMPDIR}/runtime.log"
+    grep -Fxq "cp bntest-postgres:${BN_BACKUPDIR}/postgres-container/. ${BN_BACKUPDIR}/postgres-host/" \
+        "${BATS_TEST_TMPDIR}/runtime.log"
+}

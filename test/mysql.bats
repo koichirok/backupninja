@@ -126,3 +126,20 @@ teardown_mysql() {
 @test "hotcopy: exports specific databases" {
     skip "not implemented, requires MyISAM tables, method is deprecated upstream"
 }
+
+@test "transport: dumps through a container runtime and fetches to the host" {
+    mock_container_runtime
+    setconfig databases bntest_v11vJj
+    setconfig compress yes
+    setconfig backupdir "${BN_BACKUPDIR}/mysql-container"
+    setconfig transport transport podman
+    setconfig transport container bntest-mysql
+    setconfig transport hostbackupdir "${BN_BACKUPDIR}/mysql-host"
+    runaction
+    greplog "Info: Successfully finished dump of mysql database bntest_v11vJj"
+    not_greplog "Warning:"
+    [ "$(zgrep -c 'INSERT INTO' "${BN_BACKUPDIR}/mysql-host/sqldump/bntest_v11vJj.sql.gz")" -eq 47 ]
+    grep -q '^exec -i bntest-mysql su root ' "${BATS_TEST_TMPDIR}/runtime.log"
+    grep -Fxq "cp bntest-mysql:${BN_BACKUPDIR}/mysql-container/. ${BN_BACKUPDIR}/mysql-host/" \
+        "${BATS_TEST_TMPDIR}/runtime.log"
+}
