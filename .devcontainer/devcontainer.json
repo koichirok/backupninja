@@ -1,0 +1,29 @@
+{
+  "name": "Backupninja",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "dockerDashComposeVersion": "v2",
+      "moby": false
+    }
+  },
+  "remoteUser": "vscode",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "timonwong.shellcheck",
+        "mads-hartmann.bash-ide-vscode"
+      ],
+      "settings": {
+        "files.associations": {
+          "**/src/*.in": "shellscript",
+          "**/handlers/*.in": "shellscript",
+          "**/lib/*.in": "shellscript",
+          "*.bats": "shellscript"
+        }
+      }
+    }
+  }
+}
