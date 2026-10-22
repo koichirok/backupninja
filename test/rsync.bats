@@ -101,7 +101,7 @@ finish_rsync() {
     run rsync -ain --exclude var --delete "${BN_SRCDIR}/" "${BN_REMOTEUSER}@${BN_REMOTEHOST}:${BN_BACKUPDIR}/testrsync${BN_SRCDIR}/bntest.0"
     [ "$status" -eq 0 ]
     if [ -n "$output" ]; then
-        run ! echo "$output" | grep -qv '^skipping non-regular file'
+        [ -z "$(printf '%s\n' "$output" | grep -v '^skipping non-regular file')" ]
     fi
 }
 
@@ -124,7 +124,7 @@ finish_rsync() {
     run rsync -ain --exclude var --delete "${BN_SRCDIR}/" "${BN_REMOTEUSER}@${BN_REMOTEHOST}:${BN_BACKUPDIR}/testrsync${BN_SRCDIR}/daily.1"
     [ "$status" -eq 0 ]
     if [ -n "$output" ]; then
-        run ! echo "$output" | grep -qv '^skipping non-regular file'
+        [ -z "$(printf '%s\n' "$output" | grep -v '^skipping non-regular file')" ]
     fi
 }
 
@@ -147,8 +147,7 @@ finish_rsync() {
     run rsync -ain --exclude var --delete "${BN_SRCDIR}/" "${BN_REMOTEUSER}@${BN_REMOTEHOST}:${BN_BACKUPDIR}/testrsync${BN_SRCDIR}/"
     [ "$status" -eq 0 ]
     if [ -n "$output" ]; then
-        run ! echo "$output" | grep -qv '^skipping non-regular file'
+        [ -z "$(printf '%s\n' "$output" | grep -v '^skipping non-regular file')" ]
     fi
 }
-
 

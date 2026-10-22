@@ -41,8 +41,8 @@ finish_sys() {
     pvremove /dev/sdc
     # cleanup luks headers and partition tables
     for d in /dev/sdc /dev/sdd1 /dev/sdd2 /dev/sdd /dev/sde; do
-        cryptsetup isLuks $dev && cryptsetup luksErase $dev <<< YES
-        test -b $dev && dd if=/dev/zero of=$dev bs=512 count=2048 conv=notrunc
+        cryptsetup isLuks "$d" && cryptsetup luksErase "$d" <<< YES
+        test -b "$d" && dd if=/dev/zero of="$d" bs=512 count=2048 conv=notrunc
     done
     partprobe
 }
@@ -62,13 +62,17 @@ finish_sys() {
 }
 
 @test "partitions backup is made" {
-    [ -s "${BN_BACKUPDIR}/partitions.sda.txt" ]
+    disk=sda
+    [ ! -f /etc/backupninja/docker-test-vm ] || disk=sdb
+    [ -s "${BN_BACKUPDIR}/partitions.${disk}.txt" ]
     [ -s "${BN_BACKUPDIR}/partitions.sdd.txt" ]
 }
 
 @test "mbr backup is made" {
-    [ -s "${BN_BACKUPDIR}/mbr.sda.bin" ]
-    file "${BN_BACKUPDIR}/mbr.sda.bin" | grep -q "DOS/MBR boot sector"
+    disk=sda
+    [ ! -f /etc/backupninja/docker-test-vm ] || disk=sdb
+    [ -s "${BN_BACKUPDIR}/mbr.${disk}.bin" ]
+    file "${BN_BACKUPDIR}/mbr.${disk}.bin" | grep -q "DOS/MBR boot sector"
 }
 
 @test "hardware info backup is made" {

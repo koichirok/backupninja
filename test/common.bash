@@ -86,10 +86,10 @@ setconfig() {
     fi
     if [ -n "$3" ]; then
         # named section
-        crudini --set "$CONFIGFILE" -- "$1" "$2" "$3"
+        crudini --set -- "$CONFIGFILE" "$1" "$2" "$3"
     else
         # default section
-        crudini --set "$CONFIGFILE" -- '' "$1" "$2"
+        crudini --set -- "$CONFIGFILE" '' "$1" "$2"
     fi
 }
 
@@ -107,9 +107,9 @@ setconfig_repeat() {
     local SECTION="$1"
     local PARAM="$2"
     shift 2
-    crudini --del "$CONFIGFILE" "$SECTION" "$PARAM"
+    crudini --del -- "$CONFIGFILE" "$SECTION" "$PARAM"
     for v; do
-        crudini --set --list --list-sep=$'\nREPEAT = ' "$CONFIGFILE" "$SECTION" "$PARAM" "$v"
+        crudini --set --list --list-sep=$'\nREPEAT = ' -- "$CONFIGFILE" "$SECTION" "$PARAM" "$v"
     done
     sed -i "s#^\s\+REPEAT =#${PARAM} =#" "$CONFIGFILE"
 }
@@ -125,10 +125,10 @@ delconfig() {
     fi
     if [ -n "$2" ]; then
         # named section
-        crudini --del "$CONFIGFILE" "$1" "$2"
+        crudini --del -- "$CONFIGFILE" "$1" "$2"
     else
         # default section
-        crudini --del "$CONFIGFILE" '' "$1"
+        crudini --del -- "$CONFIGFILE" '' "$1"
     fi
 }
 

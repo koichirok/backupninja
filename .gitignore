@@ -56,3 +56,4 @@ src/ninjahelper
 .vagrant
 *.swp
 *.swo
+test-results/

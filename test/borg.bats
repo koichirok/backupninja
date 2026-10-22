@@ -228,7 +228,9 @@ finish_borg() {
     delconfig dest passphrase
     cleanup_backups local
     runaction
-    greplog "Info: Backing up source finished with missing file warnings."
+    greplog "Info: Successfully finished backing up source"
+    greplog "Debug: .*foo: .*No such file or directory"
+    not_greplog "Warning: .*foo: .*No such file or directory"
 }
 
 @test "check config parameter dest/user" {
