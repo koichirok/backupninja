@@ -24,6 +24,7 @@ handlers/borg
 handlers/borg.helper
 handlers/dup
 handlers/dup.helper
+handlers/gitlab
 handlers/ldap
 handlers/ldap.helper
 handlers/maildir

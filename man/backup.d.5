@@ -102,7 +102,7 @@ The file format of the action configuration files is "ini style." Sections are c
    i will not have a pear.
 
 .SH COMMAND TRANSPORTS
-The mysql and pgsql handlers can execute database commands in a running
+The mysql, pgsql and gitlab handlers can execute backup commands in a running
 container. Add a [transport] section to the action file. The default transport
 is local.
 
@@ -144,6 +144,22 @@ container:
    transport = podman
    container = mattermost-db
    hostbackupdir = /var/backups/mattermost
+
+.SH GITLAB
+The gitlab handler runs "gitlab-backup create" for GitLab Linux package
+(Omnibus) installations, locally or through a command transport.
+The example.gitlab configuration documents the supported backup options and
+PostgreSQL connection overrides.
+
+backupdir defaults to /var/opt/gitlab/backups and must match GitLab's configured
+backup_path. It only selects the source for hostbackupdir transfers; it does
+not change GitLab's configuration. remote_directory sets DIRECTORY for remote
+object storage, not the local backup directory. Failed backups are reported as
+errors and are not fetched. Test mode neither runs nor fetches backups.
+
+GitLab application backups do not include /etc/gitlab. Back up that directory,
+including gitlab-secrets.json, separately. Restoring requires the matching
+GitLab version and edition.
 
 .SH SEE ALSO
 .BR backupninja (1),

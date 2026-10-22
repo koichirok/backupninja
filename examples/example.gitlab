@@ -1,0 +1,52 @@
+### backupninja GitLab Linux package (Omnibus) configuration ###
+
+# Requires gitlab-backup in the target's PATH. This backs up application data;
+# separately back up /etc/gitlab (including gitlab-secrets.json). Restore with
+# the matching GitLab version and edition.
+#
+# backupdir is the existing GitLab backup_path, NOT a setting that changes
+# where GitLab writes its backups. Set gitlab_rails['backup_path'] in
+# /etc/gitlab/gitlab.rb and reconfigure GitLab if you change it.
+backupdir = /var/opt/gitlab/backups
+
+# Suppress progress output (CRON=1). Default: yes.
+# cron = yes
+# trace = no
+# strategy = copy
+# filename = daily
+# gzip_rsyncable = no
+
+# Repeat skip to exclude multiple components, or use a space-separated list.
+# skip = artifacts
+# skip = registry
+# skip_tar = no
+# max_concurrency = 2
+# max_storage_concurrency = 1
+
+# DIRECTORY for remote object storage, not the local backup_path.
+# remote_directory = daily
+
+# Optional PostgreSQL connection overrides (GITLAB_BACKUP_PG*).
+# Unset options preserve GitLab's connection settings.
+# pghost = postgres
+# pguser = gitlab
+# pgport = 5432
+# pgpassword =
+# pgsslmode = verify-full
+# pgsslkey =
+# pgsslcert =
+# pgsslrootcert =
+# pgsslcrl =
+# pgsslcompression =
+
+# Commands run locally by default. For a container, append this section:
+# [transport]
+# transport = podman
+# container = gitlab
+# hostbackupdir = /var/backups/gitlab
+#
+# Docker and Docker Compose are also supported; see backup.d(5).
+# Leave hostbackupdir unset when using a host-visible backup volume.
+# Only a successful backup is fetched. A failed transfer preserves existing
+# host files. The entire backupdir is fetched, including older GitLab archives.
+# Test mode does not create or fetch backups.

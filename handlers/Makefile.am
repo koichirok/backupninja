@@ -1,9 +1,9 @@
 
-HANDLERS = borg borg.helper dup dup.helper maildir makecd	\
+HANDLERS = borg borg.helper dup dup.helper gitlab maildir makecd	\
          makecd.helper mysql mysql.helper pgsql pgsql.helper restic  \
          restic.helper rdiff rdiff.helper rsync sh svn sys sys.helper trac tar tar.helper
 
-DIST_HANDLERS = borg.in borg.helper.in dup.in dup.helper.in maildir.in makecd.in	\
+DIST_HANDLERS = borg.in borg.helper.in dup.in dup.helper.in gitlab.in maildir.in makecd.in	\
          makecd.helper.in mysql.in mysql.helper.in pgsql.in pgsql.helper.in rdiff.in	\
          rdiff.helper.in restic.in restic.helper.in rsync.in sh.in svn.in sys.in sys.helper.in	\
 		 trac.in tar.in tar.helper.in wget
@@ -34,6 +34,10 @@ dup: $(srcdir)/dup.in
 dup.helper: $(srcdir)/dup.helper.in
 	rm -f dup.helper
 	$(edit) $(srcdir)/dup.helper.in > dup.helper
+
+gitlab: $(srcdir)/gitlab.in
+	rm -f gitlab
+	$(edit) $(srcdir)/gitlab.in > gitlab
 
 ldap: $(srcdir)/ldap.in
 	rm -f ldap
@@ -118,4 +122,3 @@ tar: $(srcdir)/tar.in
 tar.helper: $(srcdir)/tar.helper.in
 	rm -f tar.helper
 	$(edit) $(srcdir)/tar.helper.in > tar.helper
-
