@@ -10,36 +10,36 @@ getconf compress yes
 # format maps to pg_dump --format= option, old/default was plain
 getconf format plain
 
-localhost=`hostname`
+transport_init
+localhost=`runcmd hostname`
+
+function transport_has_executable() {
+   runcmd sh -c 'command -v "$1" >/dev/null 2>&1 && [ -x "$(command -v "$1")" ]' sh "$1"
+}
 
 # Make sure that the system to backup has the needed executables
 if [ "$databases" == "all" ] && [ "$format" = "plain" ]; then
-   [ -x "`which $PGSQLDUMPALL`" ] || \
-      fatal "Can't find $PGSQLDUMPALL."
+   transport_has_executable "$PGSQLDUMPALL" || fatal "Can't find $PGSQLDUMPALL."
 elif [ "$format" != "plain" ]; then
-   [ -x "`which $PGSQLDUMPALL`" ] || \
-      fatal "Can't find $PGSQLDUMPALL."
-   [ -x "`which $PGSQLDUMP`" ] || \
-      fatal "Can't find $PGSQLDUMP."
-   [ -x "`which $PSQL`" ] || \
-      fatal "Can't find $PSQL."
+   transport_has_executable "$PGSQLDUMPALL" || fatal "Can't find $PGSQLDUMPALL."
+   transport_has_executable "$PGSQLDUMP" || fatal "Can't find $PGSQLDUMP."
+   transport_has_executable "$PSQL" || fatal "Can't find $PSQL."
 else
-   [ -x "`which $PGSQLDUMP`" ] || \
-      fatal "Can't find $PGSQLDUMP."
+   transport_has_executable "$PGSQLDUMP" || fatal "Can't find $PGSQLDUMP."
 fi
 
 # create backup dir
-[ -d $backupdir ] || (debug "mkdir -p $backupdir"; mkdir -p $backupdir)
-[ -d $backupdir ] || fatal "Backup directory '$backupdir' does not exist, and could not be created."
+runcmd test -d "$backupdir" || (debug "mkdir -p $backupdir"; runcmd mkdir -p "$backupdir")
+runcmd test -d "$backupdir" || fatal "Backup directory '$backupdir' does not exist, and could not be created."
 
 # give backup dir the good uid and permissions
-pguid=`getent passwd $PGSQLUSER | @AWK@ -F: '{print $3}'`
+pguid=`runcmd getent passwd "$PGSQLUSER" | @AWK@ -F: '{print $3}'`
 [ -n "$pguid" ] || fatal "No user called $PGSQLUSER."
 
 debug "chown $pguid $backupdir"
-chown $pguid $backupdir
+runcmd chown "$pguid" "$backupdir"
 debug "chmod 700 $backupdir"
-chmod 700 $backupdir
+runcmd chmod 700 "$backupdir"
 
 
 # If we are using the custom (best) or tar pg_dump format, and
@@ -50,7 +50,7 @@ if [ "$databases" = "all" ] && [ "$format" != "plain" ]; then
    execstr="su - $PGSQLUSER -c 'psql -AtU $PGSQLUSER -c \"SELECT datname FROM pg_database WHERE NOT datistemplate\"'"
    debug execstr
    dblist=""
-   for db in $(eval $execstr 2>&1); do
+   for db in $(runcmd sh -c "$execstr" 2>&1); do
       dblist="$dblist $db"
    done
    if [ "$dblist" != "" ]; then
@@ -70,7 +70,7 @@ if [ "$databases" == "all" ]; then
    fi
    debug "$execstr"
    if [ ! $test ]; then
-      output=`eval $execstr 2>&1`
+      output=`runcmd sh -c "$execstr" 2>&1`
       code=$?
       if [ "$code" == "0" ]; then
          debug "$output"
@@ -96,7 +96,7 @@ else
       execstr="su - $PGSQLUSER -s /bin/bash -c \"$globalscmd\""
       debug "$execstr"
       if [ ! $test ]; then
-         output=`eval $execstr 2>&1`
+         output=`runcmd sh -c "$execstr" 2>&1`
          code=$?
          if [ "$code" == "0" ]; then
             debug "$output"
@@ -129,7 +129,7 @@ else
       execstr="su - $PGSQLUSER -s /bin/bash -c \"$dumpcmd\""
       debug "$execstr"
       if [ ! $test ]; then
-         output=`eval $execstr 2>&1`
+         output=`runcmd sh -c "$execstr" 2>&1`
          code=$?
          if [ "$code" == "0" ]; then
             debug "$output"
@@ -142,5 +142,6 @@ else
    done
 fi
 
+transport_finalize "$backupdir"
 return 0
 

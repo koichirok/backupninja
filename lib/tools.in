@@ -85,3 +85,117 @@ function getconf() {
    # because it is in an 'eval' statement.
    eval $1='$ret'
 }
+
+#####################################################
+## COMMAND TRANSPORT
+
+# Initialize command execution for the action's optional [transport] section.
+# Handlers use runcmd instead of invoking commands directly.
+function transport_init() {
+   local previous_section="$CURRENT_SECTION"
+   local transport container service projectdir user workdir hostbackupdir
+   local docker podman docker_compose environment value
+
+   setsection transport
+   getconf transport local
+   getconf container || true
+   getconf service || true
+   getconf projectdir || true
+   getconf user || true
+   getconf workdir || true
+   getconf hostbackupdir || true
+   getconf docker docker || true
+   getconf podman podman || true
+   getconf docker_compose || true
+   getconf environment || true
+   setsection "$previous_section"
+
+   transport_name="$transport"
+   transport_host_workdir=""
+   transport_host_backupdir="$hostbackupdir"
+   transport_cmd=()
+   transport_copy_cmd=()
+
+   case "$transport_name" in
+      local)
+         ;;
+      docker|podman)
+         [ -n "$container" ] || fatal "The '$transport_name' transport requires 'container' in [transport]."
+         if [ "$transport_name" == "docker" ]; then
+            command -v "$docker" >/dev/null 2>&1 || fatal "Can't find Docker executable '$docker'."
+            transport_cmd=("$docker" exec -i)
+            transport_copy_cmd=("$docker" cp)
+         else
+            command -v "$podman" >/dev/null 2>&1 || fatal "Can't find Podman executable '$podman'."
+            transport_cmd=("$podman" exec -i)
+            transport_copy_cmd=("$podman" cp)
+         fi
+         [ -z "$user" ] || transport_cmd+=(--user "$user")
+         [ -z "$workdir" ] || transport_cmd+=(--workdir "$workdir")
+         while IFS= read -r value; do
+            [ -z "$value" ] || transport_cmd+=(--env "$value")
+         done <<< "$environment"
+         transport_cmd+=("$container")
+         transport_container="$container"
+         ;;
+      docker-compose)
+         [ -n "$projectdir" ] || fatal "The 'docker-compose' transport requires 'projectdir' in [transport]."
+         [ -d "$projectdir" ] || fatal "Docker Compose project directory '$projectdir' does not exist."
+         [ -n "$service" ] || fatal "The 'docker-compose' transport requires 'service' in [transport]."
+         if [ -n "$docker_compose" ]; then
+            command -v "$docker_compose" >/dev/null 2>&1 || fatal "Can't find Docker Compose executable '$docker_compose'."
+            transport_compose_cmd=("$docker_compose")
+         else
+            command -v "$docker" >/dev/null 2>&1 || fatal "Can't find Docker executable '$docker'."
+            "$docker" compose version >/dev/null 2>&1 || fatal "Docker Compose is not available through '$docker compose'."
+            transport_compose_cmd=("$docker" compose)
+         fi
+         (cd "$projectdir" && "${transport_compose_cmd[@]}" config --services) | grep -Fxq -- "$service" || \
+            fatal "Service '$service' does not exist in Docker Compose project '$projectdir'."
+         transport_cmd=("${transport_compose_cmd[@]}" exec -T)
+         [ -z "$user" ] || transport_cmd+=(--user "$user")
+         [ -z "$workdir" ] || transport_cmd+=(--workdir "$workdir")
+         while IFS= read -r value; do
+            [ -z "$value" ] || transport_cmd+=(--env "$value")
+         done <<< "$environment"
+         transport_cmd+=("$service")
+         transport_copy_cmd=("$docker" cp)
+         transport_host_workdir="$projectdir"
+         transport_service="$service"
+         ;;
+      *)
+         fatal "Unsupported transport '$transport_name'."
+         ;;
+   esac
+}
+
+function runcmd() {
+   if [ "$transport_name" == "local" ]; then
+      "$@"
+   elif [ -n "$transport_host_workdir" ]; then
+      (cd "$transport_host_workdir" && "${transport_cmd[@]}" "$@")
+   else
+      "${transport_cmd[@]}" "$@"
+   fi
+}
+
+function transport_finalize() {
+   local remote_path="$1"
+   local container_id
+
+   [ "$transport_name" != "local" ] || return 0
+   [ -n "$transport_host_backupdir" ] || return 0
+   [ -n "$remote_path" ] || fatal "Cannot fetch an empty backup path."
+
+   mkdir -p "$transport_host_backupdir" || fatal "Cannot create host backup directory '$transport_host_backupdir'."
+   if [ "$transport_name" == "docker-compose" ]; then
+      container_id=$(cd "$transport_host_workdir" && "${transport_compose_cmd[@]}" ps -q "$transport_service")
+      [ -n "$container_id" ] || fatal "Cannot find the container for Docker Compose service '$transport_service'."
+   else
+      container_id="$transport_container"
+   fi
+
+   debug "fetching $remote_path from $transport_name target to $transport_host_backupdir"
+   "${transport_copy_cmd[@]}" "$container_id:${remote_path%/}/." "$transport_host_backupdir/" || \
+      fatal "Failed to fetch '$remote_path' into '$transport_host_backupdir'."
+}

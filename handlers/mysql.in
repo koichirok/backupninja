@@ -14,6 +14,8 @@ getconf sqldump no
 getconf sqldumpoptions "--lock-tables --complete-insert --add-drop-table --quick --quote-names"
 getconf compress yes
 
+transport_init
+
 # authentication:
 getconf user
 getconf dbusername
@@ -29,15 +31,14 @@ for i in $ignores $nodata; do
    ignore="$ignore --ignore-table=$i"
 done
 
-# create backup dirs
-# and we will instead proceed to operate on the host
-[ -d $backupdir ] || mkdir -p $backupdir
-[ -d $backupdir ] || fatal "Backup directory '$backupdir'"
+# create backup dirs in the selected transport target
+runcmd test -d "$backupdir" || runcmd mkdir -p "$backupdir"
+runcmd test -d "$backupdir" || fatal "Backup directory '$backupdir'"
 hotdir="$backupdir/hotcopy"
 dumpdir="$backupdir/sqldump"
 
-[ "$sqldump" == "no" -o -d $dumpdir ] || mkdir -p $dumpdir
-[ "$hotcopy" == "no" -o -d $hotdir ] || mkdir -p $hotdir
+[ "$sqldump" == "no" ] || runcmd test -d "$dumpdir" || runcmd mkdir -p "$dumpdir"
+[ "$hotcopy" == "no" ] || runcmd test -d "$hotdir" || runcmd mkdir -p "$hotdir"
 
 #######################################################################
 ## AUTHENTICATION
@@ -60,25 +61,23 @@ defaultsfile=""
 
 if [ -n "$dbusername" -a -n "$dbpassword" ]
 then
-   home=`getent passwd "root" | @AWK@ -F: '{print $6}'`
+   home=`runcmd getent passwd "root" | @AWK@ -F: '{print $6}'`
 
-   [ -d $home ] || fatal "Can't find root's home directory ($home)."
+   runcmd test -d "$home" || fatal "Can't find root's home directory ($home)."
 
    mycnf="$home/.my.cnf"
 
    workcnf="$mycnf"
 
-   if [ -f $workcnf ]
+   if runcmd test -f "$workcnf"
    then
       # rename temporarily
       tmpcnf="$workcnf.disable"
       debug "mv $workcnf $tmpcnf"
-      mv $workcnf $tmpcnf
+      runcmd mv "$workcnf" "$tmpcnf"
    fi
 
-   oldmask=`umask`
-   umask 077
-   cat > $workcnf <<EOF
+   runcmd sh -c 'umask 077; cat > "$1"' sh "$workcnf" <<EOF
 # auto generated backupninja mysql conf
 [mysql]
 host=$dbhost
@@ -100,7 +99,6 @@ host=$dbhost
 user=$dbusername
 password="$dbpassword"
 EOF
-   umask $oldmask
    defaultsfile="--defaults-extra-file=$mycnf"
 
 # else, if a user is set use her .my.cnf
@@ -108,13 +106,13 @@ elif [ -n "$user" ]
 then
    userset=true;
 
-   userhome=`getent passwd "$user" | @AWK@ -F: '{print $6}'`
+   userhome=`runcmd getent passwd "$user" | @AWK@ -F: '{print $6}'`
    if [ $? -eq 2 ]
    then
       fatal "User $user not found in /etc/passwd"
    fi
    debug "User home set to: $userhome"
-   [ -f $userhome/.my.cnf ] || fatal "Can't find config file in $userhome/.my.cnf"
+   runcmd test -f "$userhome/.my.cnf" || fatal "Can't find config file in $userhome/.my.cnf"
 
    defaultsfile="--defaults-extra-file=$userhome/.my.cnf"
    debug "using $defaultsfile"
@@ -136,7 +134,7 @@ then
       debug "su $user -c \"$execstr\""
       if [ ! $test ]
       then
-         output=`su $user -c "$execstr" 2>&1`
+         output=`runcmd su "$user" -c "$execstr" 2>&1`
          code=$?
          if [ "$code" == "0" ]
          then
@@ -154,7 +152,7 @@ then
          debug 'su $user -c \"$execstr\"'
          if [ ! $test ]
          then
-            output=`su $user -c "$execstr" 2>&1`
+            output=`runcmd su "$user" -c "$execstr" 2>&1`
             code=$?
             if [ "$code" == "0" ]
             then
@@ -177,7 +175,7 @@ then
    info "Initializing SQL dump method"
    if [ "$databases" == "all" ]
    then
-      databases=$(set -o pipefail ; su $user -c "$MYSQL $defaultsfile -N -B -e 'show databases'" | sed 's/|//g;/\+----/d;/^\(information\|performance\)_schema$/d')
+      databases=$(set -o pipefail ; runcmd su "$user" -c "$MYSQL $defaultsfile -N -B -e 'show databases'" | sed 's/|//g;/\+----/d;/^\(information\|performance\)_schema$/d')
       if [ $? -ne 0 ]
       then
          fatal "Authentication problem, maybe user/password is wrong or mysqld is not running?"
@@ -208,7 +206,7 @@ then
       fi
 
       # Test to make sure mysqld is running, if it is not sqldump will not work
-      su $user -c "$MYSQLADMIN $defaultsfile ping 2>&1 >/dev/null"
+      runcmd su "$user" -c "$MYSQLADMIN $defaultsfile ping 2>&1 >/dev/null"
       if [ $? -ne 0 ]; then
          fatal "mysqld doesn't appear to be running!"
       fi
@@ -221,7 +219,7 @@ then
 
       if [ ! $test ]
       then
-         output=`su $user -s /bin/bash -c "set -o pipefail ; $execstr" 2>&1`
+         output=`runcmd su "$user" -s /bin/bash -c "set -o pipefail ; $execstr" 2>&1`
          code=$?
          if [ "$code" == "0" ]
          then
@@ -240,12 +238,13 @@ if [ "$dbusername" != "" -a "$dbpassword" != "" ]
 then
    ## clean up tmp config file
    debug "rm $workcnf"
-   rm $workcnf
-   if [ -f "$tmpcnf" ]
+   runcmd rm "$workcnf"
+   if [ -n "$tmpcnf" ] && runcmd test -f "$tmpcnf"
    then
       debug "mv $tmpcnf $workcnf"
-      mv $tmpcnf $workcnf
+      runcmd mv "$tmpcnf" "$workcnf"
    fi
 fi
 
+transport_finalize "$backupdir"
 return 0

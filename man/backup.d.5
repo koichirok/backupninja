@@ -101,6 +101,34 @@ The file format of the action configuration files is "ini style." Sections are c
    pear = no thanks \\
    i will not have a pear.
 
+.SH COMMAND TRANSPORTS
+The mysql and pgsql handlers can execute database commands in a running
+container. Add a [transport] section to the action file. The default transport
+is local.
+
+For a Docker or Podman container, set transport to docker or podman and set
+container to the container name or ID. For Docker Compose, set transport to
+docker-compose, projectdir to the Compose project directory, and service to the
+service name.
+
+The optional user, workdir, and repeatable environment settings are passed to
+container execution. The docker, podman, and docker_compose settings can
+override executable names. docker_compose names a standalone Compose
+executable; otherwise "docker compose" is used.
+
+Commands write to the handler's backupdir inside the target. If that directory
+is on a host-visible volume, no additional setting is necessary. Otherwise,
+set hostbackupdir to copy the contents to that host directory after a
+successful action.
+
+For example:
+
+   [transport]
+   transport = podman
+   container = postgres
+   user = postgres
+   hostbackupdir = /var/backups/postgres
+
 .SH SEE ALSO
 .BR backupninja (1),
 .BR ninjahelper (1),

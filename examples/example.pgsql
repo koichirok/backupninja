@@ -1,5 +1,30 @@
 ### backupninja PostgreSQL config file ###
 
+### optional command transport ###
+# Database commands normally run locally. To run them in a container, add one
+# of the following sections. backupdir is the path inside the container.
+# Set hostbackupdir to copy the completed backup to the host; otherwise the
+# container path should be backed by a host-visible volume.
+#
+# [transport]
+# transport = docker
+# container = postgres
+# hostbackupdir = /var/backups/postgres
+#
+# [transport]
+# transport = podman
+# container = postgres
+# user = postgres
+# workdir = /var/lib/postgresql
+# environment = NAME=value
+# hostbackupdir = /var/backups/postgres
+#
+# [transport]
+# transport = docker-compose
+# projectdir = /srv/application
+# service = postgres
+# hostbackupdir = /var/backups/postgres
+
 # backupdir = <dir> (default: /var/backups/postgres)
 # where to dump the backups
 
