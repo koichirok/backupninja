@@ -1,0 +1,76 @@
+# -*- mode: sh; sh-basic-offset: 3; indent-tabs-mode: nil; -*-
+# vim: set filetype=sh sw=3 sts=3 expandtab autoindent:
+#
+# GitLab Linux package (Omnibus) handler for backupninja
+#
+
+getconf backupdir /var/opt/gitlab/backups
+getconf cron yes
+getconf trace no
+getconf strategy
+getconf filename
+getconf gzip_rsyncable no
+getconf skip
+getconf skip_tar no
+getconf max_concurrency
+getconf max_storage_concurrency
+getconf remote_directory
+
+getconf pghost
+getconf pguser
+getconf pgport
+getconf pgpassword
+getconf pgsslmode
+getconf pgsslkey
+getconf pgsslcert
+getconf pgsslrootcert
+getconf pgsslcrl
+getconf pgsslcompression
+
+transport_init
+
+options=()
+env=()
+[ "$cron" != yes ] || options+=("CRON=1")
+[ "$trace" != yes ] || options+=("--trace")
+case "$strategy" in
+   "") ;;
+   copy) options+=("STRATEGY=copy") ;;
+   *) fatal "Unsupported GitLab backup strategy '$strategy'; use copy or leave it empty." ;;
+esac
+[ -z "$filename" ] || options+=("BACKUP=$filename")
+[ "$gzip_rsyncable" != yes ] || options+=("GZIP_RSYNCABLE=yes")
+
+skiplist=""
+for component in $skip; do
+   skiplist="${skiplist:+$skiplist,}$component"
+done
+[ "$skip_tar" != yes ] || skiplist="${skiplist:+$skiplist,}tar"
+[ -z "$skiplist" ] || options+=("SKIP=$skiplist")
+[ -z "$max_concurrency" ] || options+=("GITLAB_BACKUP_MAX_CONCURRENCY=$max_concurrency")
+[ -z "$max_storage_concurrency" ] || options+=("GITLAB_BACKUP_MAX_STORAGE_CONCURRENCY=$max_storage_concurrency")
+[ -z "$remote_directory" ] || options+=("DIRECTORY=$remote_directory")
+
+[ -z "$pghost" ] || env+=("GITLAB_BACKUP_PGHOST=$pghost")
+[ -z "$pguser" ] || env+=("GITLAB_BACKUP_PGUSER=$pguser")
+[ -z "$pgport" ] || env+=("GITLAB_BACKUP_PGPORT=$pgport")
+[ -z "$pgpassword" ] || env+=("GITLAB_BACKUP_PGPASSWORD=$pgpassword")
+[ -z "$pgsslmode" ] || env+=("GITLAB_BACKUP_PGSSLMODE=$pgsslmode")
+[ -z "$pgsslkey" ] || env+=("GITLAB_BACKUP_PGSSLKEY=$pgsslkey")
+[ -z "$pgsslcert" ] || env+=("GITLAB_BACKUP_PGSSLCERT=$pgsslcert")
+[ -z "$pgsslrootcert" ] || env+=("GITLAB_BACKUP_PGSSLROOTCERT=$pgsslrootcert")
+[ -z "$pgsslcrl" ] || env+=("GITLAB_BACKUP_PGSSLCRL=$pgsslcrl")
+[ -z "$pgsslcompression" ] || env+=("GITLAB_BACKUP_PGSSLCOMPRESSION=$pgsslcompression")
+
+# Never log the environment: it may contain PostgreSQL credentials.
+debug "Running gitlab-backup create through $transport_name transport"
+if [ ! "$test" ]; then
+   if runcmd env "${env[@]}" gitlab-backup create "${options[@]}"; then
+      info "Successfully finished GitLab backup"
+      transport_finalize "$backupdir"
+   else
+      error "Failed to create GitLab backup; not fetching backups to the host."
+      return 1
+   fi
+fi
+return 0

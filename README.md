@@ -31,6 +31,7 @@ The following backup types are supported:
    incremental data is compressed. permissions are retained even
    with an unpriviledged backup user
  - backup of mysql databases (via mysqlhotcopy and mysqldump)
+ - backup of GitLab Linux package installations (via gitlab-backup)
  - basic system and hardware info
  - encrypted remote backups (via duplicity or borgbackup)
  - backup of subversion repositories
