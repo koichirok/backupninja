@@ -187,6 +187,45 @@ EOF
     [ "$(sh -c "printf '%s' $(shellquote "$value")")" = "$value" ]
 }
 
+@test "POSIX dump script handles quoted paths and replaces output on success" {
+    target="${BATS_TEST_TMPDIR}/it's a backup.sql"
+    script=$(transport_dump_command "printf '%s' complete" "$target" no)
+    run sh -c "$script"
+    [ "$status" -eq 0 ]
+    [ "$(cat "$target")" = complete ]
+}
+
+@test "POSIX compressed dump detects producer failure and preserves output" {
+    target="${BATS_TEST_TMPDIR}/db.sql.gz"
+    echo previous > "$target"
+    GZIP=gzip GZIP_OPTS=""
+    script=$(transport_dump_command "( printf partial; exit 1 )" "$target" yes)
+    run sh -c "$script"
+    [ "$status" -ne 0 ]
+    [ "$(cat "$target")" = previous ]
+    [ ! -e "${BATS_TEST_TMPDIR}/.db.sql.gz.partial" ]
+}
+
+@test "POSIX compressed dump detects compressor failure and preserves output" {
+    target="${BATS_TEST_TMPDIR}/db.sql.gz"
+    echo previous > "$target"
+    GZIP=false GZIP_OPTS=""
+    script=$(transport_dump_command "printf complete" "$target" yes)
+    run sh -c "$script"
+    [ "$status" -ne 0 ]
+    [ "$(cat "$target")" = previous ]
+    [ ! -e "${BATS_TEST_TMPDIR}/.db.sql.gz.partial" ]
+}
+
+@test "POSIX dump propagates an early failure in a multi-part producer" {
+    target="${BATS_TEST_TMPDIR}/db.sql"
+    echo previous > "$target"
+    script=$(transport_dump_command "( false && printf structure )" "$target" no)
+    run sh -c "$script"
+    [ "$status" -ne 0 ]
+    [ "$(cat "$target")" = previous ]
+}
+
 @test "unsupported transports fail during initialization" {
     cat > "${BATS_TEST_TMPDIR}/transport.conf" <<EOF
 [transport]

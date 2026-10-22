@@ -16,35 +16,18 @@ getconf dbusername
 transport_init
 localhost=`runcmd hostname`
 
-# Resolve a PostgreSQL executable in the target. When the configured path does
-# not exist there (e.g. /usr/bin/pg_dump in images installing to
-# /usr/local/bin), fall back to the same command name in the target's PATH.
-function pgsql_resolve() {
-   local resolved
-   resolved=$(runcmd sh -c 'p=$(command -v "$1" 2>/dev/null) && [ -x "$p" ] && echo "$p"' sh "$1") || \
-   resolved=$(runcmd sh -c 'p=$(command -v "$1" 2>/dev/null) && [ -x "$p" ] && echo "$p"' sh "${1##*/}") || \
-      return 1
-   [ "$resolved" == "$1" ] || debug "using $resolved for $1"
-   echo "$resolved"
-}
-
 # Make sure that the system to backup has the needed executables
 if [ "$databases" == "all" ] || [ "$format" != "plain" ]; then
-   PGSQLDUMPALL=$(pgsql_resolve "$PGSQLDUMPALL") || fatal "Can't find $PGSQLDUMPALL."
+   PGSQLDUMPALL=$(transport_resolve "$PGSQLDUMPALL") || fatal "Can't find $PGSQLDUMPALL."
 fi
 if [ "$databases" != "all" ] || [ "$format" != "plain" ]; then
-   PGSQLDUMP=$(pgsql_resolve "$PGSQLDUMP") || fatal "Can't find $PGSQLDUMP."
+   PGSQLDUMP=$(transport_resolve "$PGSQLDUMP") || fatal "Can't find $PGSQLDUMP."
 fi
 if [ "$databases" == "all" ] && [ "$format" != "plain" ]; then
-   PSQL=$(pgsql_resolve "$PSQL") || fatal "Can't find $PSQL."
+   PSQL=$(transport_resolve "$PSQL") || fatal "Can't find $PSQL."
 fi
 if [ "$compress" == "yes" ]; then
-   GZIP=$(pgsql_resolve "$GZIP") || fatal "Can't find $GZIP."
-   # e.g. BusyBox gzip does not support --rsyncable
-   if [ -n "$GZIP_OPTS" ] && ! runcmd sh -c "$GZIP $GZIP_OPTS" </dev/null >/dev/null 2>&1; then
-      warning "$GZIP does not support the options '$GZIP_OPTS', compressing without them."
-      GZIP_OPTS=""
-   fi
+   transport_gzip_init
 fi
 
 # create backup dir
@@ -82,18 +65,8 @@ function pgsql_su() {
 failed=0
 function pgsql_dump() {
    local what="$1" dumpcmd="$2" target="$3"
-   local partial="${target%/*}/.${target##*/}.partial" script output code
-   local qpartial qtarget
-   qpartial=$(shellquote "$partial")
-   qtarget=$(shellquote "$target")
-
-   if [ "$compress" == "yes" ]; then
-      # POSIX replacement for pipefail: the dump status is passed through fd 3
-      script="rc=\$( { { $dumpcmd; echo \$? >&3; } | $GZIP $GZIP_OPTS > $qpartial; } 3>&1 ) && [ \"\$rc\" = 0 ]"
-   else
-      script="$dumpcmd > $qpartial"
-   fi
-   script="if $script; then mv -f $qpartial $qtarget; else rm -f $qpartial; exit 1; fi"
+   local script output code
+   script=$(transport_dump_command "$dumpcmd" "$target" "$compress")
    debug "su -l -s /bin/sh -c \"$script\" $PGSQLUSER"
    [ ! $test ] || return 0
 

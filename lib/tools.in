@@ -179,6 +179,38 @@ function shellquote() {
    printf "'%s'" "${1//$q/$q\\$q$q}"
 }
 
+# Resolve executable paths in the target, not on the backupninja host.
+function transport_resolve() {
+   local resolved
+   resolved=$(runcmd sh -c 'p=$(command -v "$1") && [ -x "$p" ] && printf "%s\n" "$p"' sh "$1" 2>/dev/null) || \
+   resolved=$(runcmd sh -c 'p=$(command -v "$1") && [ -x "$p" ] && printf "%s\n" "$p"' sh "${1##*/}" 2>/dev/null) || \
+      return 1
+   printf '%s\n' "$resolved"
+}
+
+function transport_gzip_init() {
+   GZIP=$(transport_resolve "$GZIP") || fatal "Can't find $GZIP in the backup target."
+   if [ -n "$GZIP_OPTS" ] && ! runcmd sh -c "$GZIP $GZIP_OPTS" </dev/null >/dev/null 2>&1; then
+      warning "$GZIP does not support the options '$GZIP_OPTS', compressing without them."
+      GZIP_OPTS=""
+   fi
+}
+
+# Build a POSIX sh script that preserves both pipeline statuses and installs
+# output only on success. The producer must itself propagate command failures.
+function transport_dump_command() {
+   local dumpcmd="$1" target="$2" compress="$3"
+   local qpartial qtarget script
+   qpartial=$(shellquote "${target%/*}/.${target##*/}.partial")
+   qtarget=$(shellquote "$target")
+   if [ "$compress" = yes ]; then
+      script="rc=\$( { { $dumpcmd; echo \$? >&3; } | $GZIP $GZIP_OPTS > $qpartial; } 3>&1 ) && [ \"\$rc\" = 0 ]"
+   else
+      script="$dumpcmd > $qpartial"
+   fi
+   printf '%s\n' "if $script; then mv -f $qpartial $qtarget; else rm -f $qpartial; exit 1; fi"
+}
+
 # Copy the contents of remote_path in the transport target to hostbackupdir.
 # Call this only after the backup succeeded. The files are streamed through
 # runcmd into a staging directory first and are moved into place only after
