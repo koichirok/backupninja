@@ -6,6 +6,33 @@ hotcopy     = no
 sqldump     = yes
 compress    = yes
 
+### optional command transport ###
+# Database commands normally run locally. To run them in a container, add one
+# of the following sections. backupdir is the path inside the container.
+# Set hostbackupdir to copy the completed backup to the host; otherwise the
+# container path should be backed by a host-visible volume. The copy only
+# happens when every dump succeeded, and files on the host are replaced only
+# after the whole transfer succeeded.
+#
+# [transport]
+# transport = docker
+# container = mysql
+# hostbackupdir = /var/backups/mysql
+#
+# [transport]
+# transport = podman
+# container = mysql
+# user = root
+# workdir = /var/lib/mysql
+# environment = NAME=value
+# hostbackupdir = /var/backups/mysql
+#
+# [transport]
+# transport = docker-compose
+# projectdir = /srv/application
+# service = mysql
+# hostbackupdir = /var/backups/mysql
+
 ### authentication ###
 
 # three authentication methods:

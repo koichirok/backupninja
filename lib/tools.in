@@ -85,3 +85,143 @@ function getconf() {
    # because it is in an 'eval' statement.
    eval $1='$ret'
 }
+
+#####################################################
+## COMMAND TRANSPORT
+
+# Initialize command execution for the action's optional [transport] section.
+# Handlers use runcmd instead of invoking commands directly.
+function transport_init() {
+   local previous_section="$CURRENT_SECTION"
+   local transport container service projectdir user workdir hostbackupdir
+   local docker podman docker_compose environment value
+
+   setsection transport
+   getconf transport local
+   getconf container || true
+   getconf service || true
+   getconf projectdir || true
+   getconf user || true
+   getconf workdir || true
+   getconf hostbackupdir || true
+   getconf docker docker || true
+   getconf podman podman || true
+   getconf docker_compose || true
+   getconf environment || true
+   setsection "$previous_section"
+
+   transport_name="$transport"
+   transport_host_workdir=""
+   transport_host_backupdir="$hostbackupdir"
+   transport_cmd=()
+
+   case "$transport_name" in
+      local)
+         ;;
+      docker|podman)
+         [ -n "$container" ] || fatal "The '$transport_name' transport requires 'container' in [transport]."
+         if [ "$transport_name" == "docker" ]; then
+            command -v "$docker" >/dev/null 2>&1 || fatal "Can't find Docker executable '$docker'."
+            transport_cmd=("$docker" exec -i)
+         else
+            command -v "$podman" >/dev/null 2>&1 || fatal "Can't find Podman executable '$podman'."
+            transport_cmd=("$podman" exec -i)
+         fi
+         [ -z "$user" ] || transport_cmd+=(--user "$user")
+         [ -z "$workdir" ] || transport_cmd+=(--workdir "$workdir")
+         while IFS= read -r value; do
+            [ -z "$value" ] || transport_cmd+=(--env "$value")
+         done <<< "$environment"
+         transport_cmd+=("$container")
+         ;;
+      docker-compose)
+         [ -n "$projectdir" ] || fatal "The 'docker-compose' transport requires 'projectdir' in [transport]."
+         [ -d "$projectdir" ] || fatal "Docker Compose project directory '$projectdir' does not exist."
+         [ -n "$service" ] || fatal "The 'docker-compose' transport requires 'service' in [transport]."
+         if [ -n "$docker_compose" ]; then
+            command -v "$docker_compose" >/dev/null 2>&1 || fatal "Can't find Docker Compose executable '$docker_compose'."
+            transport_compose_cmd=("$docker_compose")
+         else
+            command -v "$docker" >/dev/null 2>&1 || fatal "Can't find Docker executable '$docker'."
+            "$docker" compose version >/dev/null 2>&1 || fatal "Docker Compose is not available through '$docker compose'."
+            transport_compose_cmd=("$docker" compose)
+         fi
+         (cd "$projectdir" && "${transport_compose_cmd[@]}" config --services) | grep -Fxq -- "$service" || \
+            fatal "Service '$service' does not exist in Docker Compose project '$projectdir'."
+         transport_cmd=("${transport_compose_cmd[@]}" exec -T)
+         [ -z "$user" ] || transport_cmd+=(--user "$user")
+         [ -z "$workdir" ] || transport_cmd+=(--workdir "$workdir")
+         while IFS= read -r value; do
+            [ -z "$value" ] || transport_cmd+=(--env "$value")
+         done <<< "$environment"
+         transport_cmd+=("$service")
+         transport_host_workdir="$projectdir"
+         ;;
+      *)
+         fatal "Unsupported transport '$transport_name'."
+         ;;
+   esac
+}
+
+function runcmd() {
+   if [ "$transport_name" == "local" ]; then
+      "$@"
+   elif [ -n "$transport_host_workdir" ]; then
+      (cd "$transport_host_workdir" && "${transport_cmd[@]}" "$@")
+   else
+      "${transport_cmd[@]}" "$@"
+   fi
+}
+
+# Quote a value for safe use in a POSIX shell command string.
+function shellquote() {
+   local q="'"
+   printf "'%s'" "${1//$q/$q\\$q$q}"
+}
+
+# Copy the contents of remote_path in the transport target to hostbackupdir.
+# Call this only after the backup succeeded. The files are streamed through
+# runcmd into a staging directory first and are moved into place only after
+# the whole transfer succeeded, so a failed transfer leaves the previous
+# backups untouched.
+function transport_finalize() {
+   local remote_path="$1"
+   local staging file
+   local -a status
+
+   [ "$transport_name" != "local" ] || return 0
+   [ -n "$transport_host_backupdir" ] || return 0
+   [ -n "$remote_path" ] || fatal "Cannot fetch an empty backup path."
+   if [ $test ]; then
+      debug "test mode: not fetching $remote_path to $transport_host_backupdir"
+      return 0
+   fi
+
+   mkdir -p "$transport_host_backupdir" || fatal "Cannot create host backup directory '$transport_host_backupdir'."
+   staging=$(mktemp -d "$transport_host_backupdir/.backupninja-fetch.XXXXXX") || \
+      fatal "Cannot create a staging directory in '$transport_host_backupdir'."
+
+   debug "fetching $remote_path from $transport_name target to $transport_host_backupdir"
+   runcmd tar -cf - -C "$remote_path" . | \
+      tar -xf - -C "$staging" --no-same-owner --no-same-permissions
+   status=("${PIPESTATUS[@]}")
+   if [ "${status[0]}" != 0 ] || [ "${status[1]}" != 0 ]; then
+      rm -rf "$staging"
+      fatal "Failed to fetch '$remote_path' from the $transport_name target into '$transport_host_backupdir'; previous backups were left unchanged."
+   fi
+
+   # Only regular files are installed; links from the target are not trusted.
+   while IFS= read -r -d '' file; do
+      file="${file#./}"
+      if [ ! -f "$staging/$file" ] || [ -L "$staging/$file" ]; then
+         warning "Not installing '$file' from the $transport_name target: not a regular file."
+         continue
+      fi
+      mkdir -p "$transport_host_backupdir/$(dirname "$file")" && \
+         mv -f "$staging/$file" "$transport_host_backupdir/$file" || {
+            rm -rf "$staging"
+            fatal "Failed to install '$file' into '$transport_host_backupdir'."
+         }
+   done < <(cd "$staging" && find . ! -type d -print0)
+   rm -rf "$staging"
+}

@@ -10,76 +10,133 @@ getconf compress yes
 # format maps to pg_dump --format= option, old/default was plain
 getconf format plain
 
-localhost=`hostname`
+# PostgreSQL role used to connect; empty keeps the role implied by PGSQLUSER
+getconf dbusername
+
+transport_init
+localhost=`runcmd hostname`
+
+# Resolve a PostgreSQL executable in the target. When the configured path does
+# not exist there (e.g. /usr/bin/pg_dump in images installing to
+# /usr/local/bin), fall back to the same command name in the target's PATH.
+function pgsql_resolve() {
+   local resolved
+   resolved=$(runcmd sh -c 'p=$(command -v "$1" 2>/dev/null) && [ -x "$p" ] && echo "$p"' sh "$1") || \
+   resolved=$(runcmd sh -c 'p=$(command -v "$1" 2>/dev/null) && [ -x "$p" ] && echo "$p"' sh "${1##*/}") || \
+      return 1
+   [ "$resolved" == "$1" ] || debug "using $resolved for $1"
+   echo "$resolved"
+}
 
 # Make sure that the system to backup has the needed executables
-if [ "$databases" == "all" ] && [ "$format" = "plain" ]; then
-   [ -x "`which $PGSQLDUMPALL`" ] || \
-      fatal "Can't find $PGSQLDUMPALL."
-elif [ "$format" != "plain" ]; then
-   [ -x "`which $PGSQLDUMPALL`" ] || \
-      fatal "Can't find $PGSQLDUMPALL."
-   [ -x "`which $PGSQLDUMP`" ] || \
-      fatal "Can't find $PGSQLDUMP."
-   [ -x "`which $PSQL`" ] || \
-      fatal "Can't find $PSQL."
-else
-   [ -x "`which $PGSQLDUMP`" ] || \
-      fatal "Can't find $PGSQLDUMP."
+if [ "$databases" == "all" ] || [ "$format" != "plain" ]; then
+   PGSQLDUMPALL=$(pgsql_resolve "$PGSQLDUMPALL") || fatal "Can't find $PGSQLDUMPALL."
+fi
+if [ "$databases" != "all" ] || [ "$format" != "plain" ]; then
+   PGSQLDUMP=$(pgsql_resolve "$PGSQLDUMP") || fatal "Can't find $PGSQLDUMP."
+fi
+if [ "$databases" == "all" ] && [ "$format" != "plain" ]; then
+   PSQL=$(pgsql_resolve "$PSQL") || fatal "Can't find $PSQL."
+fi
+if [ "$compress" == "yes" ]; then
+   GZIP=$(pgsql_resolve "$GZIP") || fatal "Can't find $GZIP."
+   # e.g. BusyBox gzip does not support --rsyncable
+   if [ -n "$GZIP_OPTS" ] && ! runcmd sh -c "$GZIP $GZIP_OPTS" </dev/null >/dev/null 2>&1; then
+      warning "$GZIP does not support the options '$GZIP_OPTS', compressing without them."
+      GZIP_OPTS=""
+   fi
 fi
 
 # create backup dir
-[ -d $backupdir ] || (debug "mkdir -p $backupdir"; mkdir -p $backupdir)
-[ -d $backupdir ] || fatal "Backup directory '$backupdir' does not exist, and could not be created."
+if ! runcmd test -d "$backupdir"; then
+   debug "mkdir -p $backupdir"
+   runcmd mkdir -p "$backupdir"
+fi
+runcmd test -d "$backupdir" || fatal "Backup directory '$backupdir' does not exist, and could not be created."
+
+# PGSQLUSER is the system user running the dumps, not necessarily a database role
+pguid=`runcmd getent passwd "$PGSQLUSER" | @AWK@ -F: '{print $3}'`
+[ -n "$pguid" ] || fatal "No system user called $PGSQLUSER. Set PGSQLUSER to the system user owning PostgreSQL and dbusername to the database role."
 
 # give backup dir the good uid and permissions
-pguid=`getent passwd $PGSQLUSER | @AWK@ -F: '{print $3}'`
-[ -n "$pguid" ] || fatal "No user called $PGSQLUSER."
-
 debug "chown $pguid $backupdir"
-chown $pguid $backupdir
+runcmd chown "$pguid" "$backupdir" || fatal "Can't change the owner of '$backupdir' to $PGSQLUSER."
 debug "chmod 700 $backupdir"
-chmod 700 $backupdir
+runcmd chmod 700 "$backupdir" || fatal "Can't change the permissions of '$backupdir'."
 
+connectopts=""
+if [ -n "$dbusername" ]; then
+   connectopts="-U $(shellquote "$dbusername")"
+fi
+
+# Run a shell command as the PostgreSQL system user in the target. /bin/sh is
+# used so that minimal images without bash work; options come before the user
+# name for BusyBox su.
+function pgsql_su() {
+   runcmd su -l -s /bin/sh -c "$1" "$PGSQLUSER"
+}
+
+# Dump with the shell command $2 into the file $3, described as $1. The output
+# is written to a partial file which only replaces the previous backup when the
+# dump (and compression) succeeded.
+failed=0
+function pgsql_dump() {
+   local what="$1" dumpcmd="$2" target="$3"
+   local partial="${target%/*}/.${target##*/}.partial" script output code
+   local qpartial qtarget
+   qpartial=$(shellquote "$partial")
+   qtarget=$(shellquote "$target")
+
+   if [ "$compress" == "yes" ]; then
+      # POSIX replacement for pipefail: the dump status is passed through fd 3
+      script="rc=\$( { { $dumpcmd; echo \$? >&3; } | $GZIP $GZIP_OPTS > $qpartial; } 3>&1 ) && [ \"\$rc\" = 0 ]"
+   else
+      script="$dumpcmd > $qpartial"
+   fi
+   script="if $script; then mv -f $qpartial $qtarget; else rm -f $qpartial; exit 1; fi"
+   debug "su -l -s /bin/sh -c \"$script\" $PGSQLUSER"
+   [ ! $test ] || return 0
+
+   output=`pgsql_su "$script" 2>&1`
+   code=$?
+   if [ "$code" == "0" ]; then
+      debug "$output"
+      info "Successfully finished dump of $what"
+   else
+      error "$output"
+      error "Failed to dump $what"
+      failed=1
+   fi
+}
 
 # If we are using the custom (best) or tar pg_dump format, and
 # dumping "all" databases, we will substitute "all" for a list
 # of all non-template databases to avoid the use of pg_dumpall.
 dumpglobals="no"
 if [ "$databases" = "all" ] && [ "$format" != "plain" ]; then
-   execstr="su - $PGSQLUSER -c 'psql -AtU $PGSQLUSER -c \"SELECT datname FROM pg_database WHERE NOT datistemplate\"'"
-   debug execstr
-   dblist=""
-   for db in $(eval $execstr 2>&1); do
-      dblist="$dblist $db"
-   done
-   if [ "$dblist" != "" ]; then
-      databases="$dblist"
+   if [ -n "$dbusername" ]; then
+      listcmd="$PSQL -At $connectopts -d postgres"
+   else
+      listcmd="$PSQL -AtU $PGSQLUSER"
    fi
+   listcmd="$listcmd -c 'SELECT datname FROM pg_database WHERE NOT datistemplate'"
+   debug "$listcmd"
+   dblist=$(pgsql_su "$listcmd" 2>&1) || fatal "Can't list the databases: $dblist"
+   databases=""
+   for db in $dblist; do
+      databases="$databases $db"
+   done
+   [ -n "$databases" ] || fatal "No databases found to back up."
    # Dump globals (pg_dumpall -g) for roles and tablespaces
    dumpglobals="yes"
 fi
 
+suffix=""
+[ "$compress" != "yes" ] || suffix=".gz"
 
 # if $databases = all, use pg_dumpall
 if [ "$databases" == "all" ]; then
-   if [ "$compress" == "yes" ]; then
-      execstr="su - $PGSQLUSER -s /bin/bash -c \"set -o pipefail ; $PGSQLDUMPALL | $GZIP $GZIP_OPTS > '$backupdir/${localhost}-all.sql.gz'\""
-   else
-      execstr="su - $PGSQLUSER -c \"$PGSQLDUMPALL > '$backupdir/${localhost}-all.sql'\""
-   fi
-   debug "$execstr"
-   if [ ! $test ]; then
-      output=`eval $execstr 2>&1`
-      code=$?
-      if [ "$code" == "0" ]; then
-         debug "$output"
-         info "Successfully finished dump of pgsql cluster"
-      else
-         warning "$output"
-         warning "Failed to dump pgsql cluster"
-      fi
-   fi
+   pgsql_dump "pgsql cluster" "$PGSQLDUMPALL $connectopts" "$backupdir/${localhost}-all.sql$suffix"
 
 # else use pg_dump on each specified database
 else
@@ -87,25 +144,7 @@ else
    # so we track the database=all selection in dumpglobals which tells us
    # to also dump the roles and tablespaces via pg_dumpall -g
    if [ "$dumpglobals" = "yes" ]; then
-      globalscmd=""
-      if [ "$compress" == "yes" ]; then
-         globalscmd="set -o pipefail ; $PGSQLDUMPALL -g | $GZIP $GZIP_OPTS > '$backupdir/globals.sql.gz'"
-      else
-         globalscmd="$PGSQLDUMPALL -g > '$backupdir/globals.sql'"
-      fi
-      execstr="su - $PGSQLUSER -s /bin/bash -c \"$globalscmd\""
-      debug "$execstr"
-      if [ ! $test ]; then
-         output=`eval $execstr 2>&1`
-         code=$?
-         if [ "$code" == "0" ]; then
-            debug "$output"
-            info "Successfully finished pgsql globals (roles and tablespaces) dump"
-         else
-            warning "$output"
-            warning "Failed to dump pgsql globals (roles and tablespaces)"
-         fi
-      fi
+      pgsql_dump "pgsql globals (roles and tablespaces)" "$PGSQLDUMPALL $connectopts -g" "$backupdir/globals.sql$suffix"
    fi
    for db in $databases; do
       dumpext="sql"
@@ -119,28 +158,15 @@ else
       if [ "$format" = "custom" ]; then
          disablecustomcompress="--compress=0"
       fi
-      dumpcmd=""
-      globalscmd=""
-      if [ "$compress" == "yes" ]; then
-         dumpcmd="set -o pipefail ; $PGSQLDUMP --format=$format ${disablecustomcompress} $db | $GZIP $GZIP_OPTS > '$backupdir/${db}.${dumpext}.gz'"
-      else
-         dumpcmd="$PGSQLDUMP --format=$format ${disablecustomcompress} $db > '$backupdir/${db}.${dumpext}'"
-      fi
-      execstr="su - $PGSQLUSER -s /bin/bash -c \"$dumpcmd\""
-      debug "$execstr"
-      if [ ! $test ]; then
-         output=`eval $execstr 2>&1`
-         code=$?
-         if [ "$code" == "0" ]; then
-            debug "$output"
-            info "Successfully finished dump of pgsql database ${db}"
-         else
-            warning "$output"
-            warning "Failed to dump pgsql database ${db}"
-         fi
-      fi
+      pgsql_dump "pgsql database ${db}" \
+         "$PGSQLDUMP $connectopts --format=$format ${disablecustomcompress} $(shellquote "$db")" \
+         "$backupdir/${db}.${dumpext}$suffix"
    done
 fi
 
+if [ "$failed" == 0 ]; then
+   transport_finalize "$backupdir"
+elif [ "$transport_name" != "local" ] && [ -n "$transport_host_backupdir" ]; then
+   error "Not fetching backups to $transport_host_backupdir because a dump failed; previous backups were left unchanged."
+fi
 return 0
-

@@ -126,3 +126,38 @@ teardown_mysql() {
 @test "hotcopy: exports specific databases" {
     skip "not implemented, requires MyISAM tables, method is deprecated upstream"
 }
+
+@test "transport: dumps through a container runtime and fetches to the host" {
+    mock_container_runtime
+    setconfig databases bntest_v11vJj
+    setconfig compress yes
+    setconfig backupdir "${BN_BACKUPDIR}/mysql-container"
+    setconfig transport transport podman
+    setconfig transport container bntest-mysql
+    setconfig transport hostbackupdir "${BN_BACKUPDIR}/mysql-host"
+    runaction
+    greplog "Info: Successfully finished dump of mysql database bntest_v11vJj"
+    not_greplog "Warning:"
+    [ "$(zgrep -c 'INSERT INTO' "${BN_BACKUPDIR}/mysql-host/sqldump/bntest_v11vJj.sql.gz")" -eq 47 ]
+    grep -q '^exec -i bntest-mysql su root ' "${BATS_TEST_TMPDIR}/runtime.log"
+    grep -Fxq "exec -i bntest-mysql tar -cf - -C ${BN_BACKUPDIR}/mysql-container ." \
+        "${BATS_TEST_TMPDIR}/runtime.log"
+}
+
+@test "transport: failed dump does not replace the host backup" {
+    mock_container_runtime
+    setconfig databases bntest_doesnotexist
+    setconfig compress no
+    setconfig backupdir "${BN_BACKUPDIR}/mysql-container"
+    setconfig transport transport podman
+    setconfig transport container bntest-mysql
+    setconfig transport hostbackupdir "${BN_BACKUPDIR}/mysql-host-fail"
+    mkdir -p "${BN_BACKUPDIR}/mysql-host-fail"
+    echo previous > "${BN_BACKUPDIR}/mysql-host-fail/marker"
+    runaction
+    greplog "Error: Failed to dump mysql databases bntest_doesnotexist"
+    greplog "Error: Not fetching backups"
+    run grep -q ' tar ' "${BATS_TEST_TMPDIR}/runtime.log"
+    [ "$status" -ne 0 ]
+    [ "$(ls -A "${BN_BACKUPDIR}/mysql-host-fail")" = marker ]
+}

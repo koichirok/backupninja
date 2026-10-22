@@ -242,6 +242,35 @@ makegpgkeys() {
     export BN_SIGNKEY
 }
 
+# Install a fake podman that runs "exec" against the local system,
+# so handlers can be exercised through a container transport without a
+# container runtime. Invocations are logged to $BATS_TEST_TMPDIR/runtime.log.
+mock_container_runtime() {
+    mkdir -p "${BATS_TEST_TMPDIR}/bin"
+    cat > "${BATS_TEST_TMPDIR}/bin/podman" <<EOF
+#!/bin/bash
+printf '%s\n' "\$*" >> '${BATS_TEST_TMPDIR}/runtime.log'
+EOF
+    cat >> "${BATS_TEST_TMPDIR}/bin/podman" <<'EOF'
+case "$1" in
+    exec)
+        shift
+        while [[ "$1" == -* ]]; do
+            case "$1" in
+                --user|--workdir|--env) shift 2 ;;
+                *) shift ;;
+            esac
+        done
+        shift # container
+        exec "$@"
+        ;;
+esac
+exit 1
+EOF
+    chmod +x "${BATS_TEST_TMPDIR}/bin/podman"
+    export PATH="${BATS_TEST_TMPDIR}/bin:$PATH"
+}
+
 install_pkgs() {
     TMPDIR=/tmp DEBIAN_FRONTEND=noninteractive apt-get -qq install $@
 }
