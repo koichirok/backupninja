@@ -126,8 +126,21 @@ The copy is streamed with tar through the transport into a staging directory
 below hostbackupdir. Existing files are replaced only after the whole transfer
 succeeded, and only regular files are installed. If any dump fails, nothing is
 copied and the previous host backups are kept. A failed copy is reported as a
-fatal error. The target needs tar and /bin/sh; bash is not required by the
-pgsql handler.
+fatal error. The target needs tar and /bin/sh; the mysql and pgsql handlers
+do not require Bash in the target. Their compressed dumps detect failures
+from both the database tool and gzip and replace existing dump files only
+after success. The GitLab handler invokes gitlab-backup directly; any runtime
+dependencies of GitLab's own tools still need to be installed in its image.
+
+Backupninja, its handler files and the transport library are executed on the
+host with Bash. Only commands and shell scripts sent to the target must be
+POSIX sh compatible; the host still requires Bash. Transport argv arrays and
+host-side transfer status checking are not executed in the container.
+
+PostgreSQL and MySQL tool paths are resolved in the target, falling back to
+the executable's basename in its PATH. Unsupported GZIP_OPTS are dropped with
+a warning (BusyBox gzip lacks the default --rsyncable option). Set GZIP_OPTS
+to portable options such as -n in backupninja.conf to avoid that warning.
 
 The pgsql handler runs commands as the system user PGSQLUSER. Set dbusername
 in the action file when the PostgreSQL role differs from that user.

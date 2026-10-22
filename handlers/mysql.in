@@ -16,6 +16,16 @@ getconf compress yes
 
 transport_init
 failed=0
+if [ "$sqldump" = yes ]; then
+   MYSQL=$(transport_resolve "$MYSQL") || fatal "Can't find $MYSQL."
+   MYSQLADMIN=$(transport_resolve "$MYSQLADMIN") || fatal "Can't find $MYSQLADMIN."
+   MYSQLDUMP=$(transport_resolve "$MYSQLDUMP") || fatal "Can't find $MYSQLDUMP."
+   [ "$compress" != yes ] || transport_gzip_init
+fi
+
+function mysql_su() {
+   runcmd su -s /bin/sh -c "$1" "$user"
+}
 
 # authentication:
 getconf user
@@ -131,11 +141,11 @@ then
    info "Initializing hotcopy method"
    if [ "$databases" == "all" ]
    then
-      execstr="$MYSQLHOTCOPY --quiet --allowold --regexp /.\*/./.\*/ $hotdir"
+      execstr="$MYSQLHOTCOPY --quiet --allowold --regexp /.\*/./.\*/ $(shellquote "$hotdir")"
       debug "su $user -c \"$execstr\""
       if [ ! $test ]
       then
-         output=`runcmd su "$user" -c "$execstr" 2>&1`
+         output=`mysql_su "$execstr" 2>&1`
          code=$?
          if [ "$code" == "0" ]
          then
@@ -149,11 +159,11 @@ then
    else
       for db in $databases
       do
-         execstr="$MYSQLHOTCOPY --allowold $db $hotdir"
+         execstr="$MYSQLHOTCOPY --allowold $(shellquote "$db") $(shellquote "$hotdir")"
          debug 'su $user -c \"$execstr\"'
          if [ ! $test ]
          then
-            output=`runcmd su "$user" -c "$execstr" 2>&1`
+            output=`mysql_su "$execstr" 2>&1`
             code=$?
             if [ "$code" == "0" ]
             then
@@ -176,11 +186,9 @@ then
    info "Initializing SQL dump method"
    if [ "$databases" == "all" ]
    then
-      databases=$(set -o pipefail ; runcmd su "$user" -c "$MYSQL $defaultsfile -N -B -e 'show databases'" | sed 's/|//g;/\+----/d;/^\(information\|performance\)_schema$/d')
-      if [ $? -ne 0 ]
-      then
+      dblist=$(mysql_su "$MYSQL $(shellquote "$defaultsfile") -N -B -e 'show databases'") || \
          fatal "Authentication problem, maybe user/password is wrong or mysqld is not running?"
-      fi
+      databases=$(printf '%s\n' "$dblist" | sed 's/|//g;/\+----/d;/^\(information\|performance\)_schema$/d')
    fi
 
    for db in $databases
@@ -188,39 +196,40 @@ then
       # Sanitize database name
       db=$(echo $db | tr -d \'\;)
 
-      DUMP_BASE="$MYSQLDUMP $defaultsfile $sqldumpoptions"
+      DUMP_BASE="$MYSQLDUMP $(shellquote "$defaultsfile") $sqldumpoptions"
 
       # Dumping structure and data
-      DUMP="$DUMP_BASE $ignore $db"
+      DUMP="$DUMP_BASE $ignore $(shellquote "$db")"
 
       # If requested, dump only the table structure for this database
       if echo "$nodata" | grep -E '(^|[[:space:]])'"$db\." >/dev/null
       then
          # Get the structure of the tables, without data
-         DUMP_STRUCT="$DUMP_BASE --no-data $db"
+         DUMP_STRUCT="$DUMP_BASE --no-data $(shellquote "$db")"
          for qualified_table in $nodata
          do
             table=$( expr match "$qualified_table" "$db\.\(.\+\)" )
-            DUMP_STRUCT="$DUMP_STRUCT $table"
+            DUMP_STRUCT="$DUMP_STRUCT $(shellquote "$table")"
          done
-         DUMP="( $DUMP; $DUMP_STRUCT )"
+         DUMP="( $DUMP && $DUMP_STRUCT )"
       fi
 
       # Test to make sure mysqld is running, if it is not sqldump will not work
-      runcmd su "$user" -c "$MYSQLADMIN $defaultsfile ping 2>&1 >/dev/null"
+      mysql_su "$MYSQLADMIN $(shellquote "$defaultsfile") ping 2>&1 >/dev/null"
       if [ $? -ne 0 ]; then
          fatal "mysqld doesn't appear to be running!"
       fi
       if [ "$compress" == "yes" ]; then
-         execstr="$DUMP | $GZIP $GZIP_OPTS > '$dumpdir/${db}.sql.gz'"
+         target="$dumpdir/${db}.sql.gz"
       else
-         execstr="$DUMP > '$dumpdir/${db}.sql'"
+         target="$dumpdir/${db}.sql"
       fi
+      execstr=$(transport_dump_command "$DUMP" "$target" "$compress")
       debug "su $user -c \"$execstr\""
 
       if [ ! $test ]
       then
-         output=`runcmd su "$user" -s /bin/bash -c "set -o pipefail ; $execstr" 2>&1`
+         output=`mysql_su "$execstr" 2>&1`
          code=$?
          if [ "$code" == "0" ]
          then

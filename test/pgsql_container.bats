@@ -114,6 +114,14 @@ pgconfig() {
     done
     grep -q '^COPY public.posts' "${BN_BACKUPDIR}/nobash/mattermost.sql"
     zgrep -q '^COPY public.posts' "${BN_BACKUPDIR}/nobash/mattermost.sql.gz"
+    # Also exercise psql listing and pg_dumpall globals through BusyBox su.
+    pgconfig databases all
+    pgconfig format custom
+    pgconfig compress no
+    runaction test.pgsql
+    not_greplog "Error:"
+    [ -s "${BN_BACKUPDIR}/nobash/globals.sql" ]
+    file "${BN_BACKUPDIR}/nobash/mattermost.pg_dump" | grep -q "PostgreSQL custom database dump"
 }
 
 @test "missing system user is fatal" {

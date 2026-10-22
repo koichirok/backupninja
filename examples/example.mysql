@@ -13,6 +13,13 @@ compress    = yes
 # container path should be backed by a host-visible volume. The copy only
 # happens when every dump succeeded, and files on the host are replaced only
 # after the whole transfer succeeded.
+# Target commands run with /bin/sh, including compressed dumps and hotcopy;
+# Bash is required only on the backupninja host. Dumps replace existing files
+# only after the producer and compressor succeed. Executable paths are looked
+# up in the target's PATH if the configured path does not exist there.
+# BusyBox gzip does not support the default GZIP_OPTS=--rsyncable. Unsupported
+# options are dropped with a warning; set GZIP_OPTS=-n in backupninja.conf to
+# select portable options explicitly.
 #
 # [transport]
 # transport = docker

@@ -15,6 +15,8 @@ bash test/docker.sh
 # Run just one handler, or several:
 bash test/docker.sh sys
 bash test/docker.sh mysql pgsql
+# Container-side POSIX sh and real Alpine database tests:
+bash test/docker.sh transport mysql pgsql gitlab container_shell pgsql_container
 ```
 
 Never run `test/test.sh` directly on the host or in the Dev Container.
@@ -26,6 +28,13 @@ uncommitted source changes. It does not mount the workspace: this also works
 when the Docker daemon is inside a Dev Container. Ignored build output is
 regenerated in the guest. Dependencies require network access to Debian and
 GitHub during image creation and VM provisioning.
+The container_shell and pgsql_container suites additionally need Docker Hub
+access for Alpine and PostgreSQL images. container_shell installs MariaDB
+from the Alpine package mirrors inside its disposable container. These tests
+run commands under BusyBox sh without Bash, restore real database dumps and
+check failure propagation. GitLab command execution is tested with a stub,
+not a complete GitLab installation. The backupninja host and Bats tests
+continue to use Bash.
 
 The image contains a versioned, SHA-512-verified Debian 12 amd64 cloud image
 and a SHA-256-verified rest-server binary. Two disposable QEMU VMs reproduce
