@@ -1,0 +1,11 @@
+.git
+.vagrant
+tmp
+test-results
+autom4te.cache
+**/Makefile
+**/Makefile.in
+aclocal.m4
+configure
+config.log
+config.status

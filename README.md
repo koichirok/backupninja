@@ -40,6 +40,42 @@ Installation
 
 See the [installation documentation](INSTALL.md).
 
+Development container
+=====================
+
+Open this repository as the VS Code workspace, install the Dev Containers
+extension, and run **Dev Containers: Reopen in Container**. A Docker environment
+that permits privileged containers is required.
+
+The container provides Debian Trixie, Autotools, ShellCheck, Bats, and basic
+test utilities. It does not install Backupninja or enable scheduled backups.
+The test runner builds and installs Backupninja inside disposable test VMs.
+
+The Docker-in-Docker feature provides a dedicated Docker daemon, Compose v2,
+and persistent Docker storage. It does not mount the host Docker socket.
+Check availability inside the container with:
+
+```sh
+docker info
+docker compose version
+```
+
+Run the same Docker-based suite used by GitHub Actions:
+
+```sh
+bash test/docker.sh
+# Or select handlers:
+bash test/docker.sh sys sh
+```
+
+See [README_tests.md](README_tests.md) for requirements, logs, and optional KVM
+acceleration. Do not run `test/test.sh` directly in the development container.
+
+Docker-in-Docker requires a privileged development container and shares the
+host kernel. It does not isolate loop devices or device-mapper resources.
+The Docker test runner therefore runs QEMU VMs with disposable virtual disks,
+rather than using host loop devices. Never expose host disks to the tests.
+
 Options
 =======
 

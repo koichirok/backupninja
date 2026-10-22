@@ -1,0 +1,48 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  docker:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build test image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: test/docker/Dockerfile
+          load: true
+          tags: backupninja-tests
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Test runner regression tests
+        run: docker run --rm --entrypoint bats backupninja-tests /src/test/docker/runner.bats
+      - name: Run tests
+        env:
+          BN_TEST_SKIP_BUILD: "1"
+        run: |
+          if [ -c /dev/kvm ]; then
+            sudo chmod a+rw /dev/kvm
+            export BN_TEST_KVM=1
+          fi
+          bash test/docker.sh
+      - name: Upload test and VM logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results/
+          if-no-files-found: warn
