@@ -168,7 +168,65 @@ teardown_pgsql() {
     greplog "Info: Successfully finished dump of pgsql database bntest_v11vJj"
     not_greplog "Warning:"
     gzip -tq "${BN_BACKUPDIR}/postgres-host/bntest_v11vJj.sql.gz"
-    grep -q '^exec -i bntest-postgres sh -c su - postgres ' "${BATS_TEST_TMPDIR}/runtime.log"
-    grep -Fxq "cp bntest-postgres:${BN_BACKUPDIR}/postgres-container/. ${BN_BACKUPDIR}/postgres-host/" \
+    grep -q '^exec -i bntest-postgres su -l -s /bin/sh -c ' "${BATS_TEST_TMPDIR}/runtime.log"
+    grep -Fxq "exec -i bntest-postgres tar -cf - -C ${BN_BACKUPDIR}/postgres-container ." \
         "${BATS_TEST_TMPDIR}/runtime.log"
+}
+
+@test "dbusername: connects with an explicit database role" {
+    setconfig databases all
+    setconfig compress no
+    setconfig format custom
+    setconfig dbusername postgres
+    runaction
+    greplog "Info: Successfully finished dump of pgsql database bntest_v11vJj"
+    not_greplog "Error:"
+    file "${BN_BACKUPDIR}/postgres/bntest_v11vJj.pg_dump" | grep -q "PostgreSQL custom database dump"
+    [ -s "${BN_BACKUPDIR}/postgres/globals.sql" ]
+}
+
+@test "dbusername: unknown database role is an error" {
+    setconfig databases bntest_v11vJj
+    setconfig compress yes
+    setconfig dbusername bntest_nosuchrole
+    runaction
+    greplog "Error: Failed to dump pgsql database bntest_v11vJj"
+    [ ! -e "${BN_BACKUPDIR}/postgres/bntest_v11vJj.sql.gz" ]
+    [ ! -e "${BN_BACKUPDIR}/postgres/.bntest_v11vJj.sql.gz.partial" ]
+}
+
+@test "dbusername: database listing failure is fatal" {
+    setconfig databases all
+    setconfig format custom
+    setconfig dbusername bntest_nosuchrole
+    runaction
+    greplog "Fatal: Can't list the databases"
+}
+
+@test "failed dump keeps the previous backup" {
+    setconfig databases bntest_doesnotexist
+    setconfig compress yes
+    mkdir -p "${BN_BACKUPDIR}/postgres"
+    echo previous | gzip > "${BN_BACKUPDIR}/postgres/bntest_doesnotexist.sql.gz"
+    runaction
+    greplog "Error: Failed to dump pgsql database bntest_doesnotexist"
+    [ "$(zcat "${BN_BACKUPDIR}/postgres/bntest_doesnotexist.sql.gz")" = previous ]
+}
+
+@test "transport: failed dump is not fetched to the host" {
+    mock_container_runtime
+    setconfig databases bntest_doesnotexist
+    setconfig compress no
+    setconfig backupdir "${BN_BACKUPDIR}/postgres-container"
+    setconfig transport transport podman
+    setconfig transport container bntest-postgres
+    setconfig transport hostbackupdir "${BN_BACKUPDIR}/postgres-host-fail"
+    mkdir -p "${BN_BACKUPDIR}/postgres-host-fail"
+    echo previous > "${BN_BACKUPDIR}/postgres-host-fail/bntest_doesnotexist.sql"
+    runaction
+    greplog "Error: Failed to dump pgsql database bntest_doesnotexist"
+    greplog "Error: Not fetching backups"
+    run grep -q ' tar ' "${BATS_TEST_TMPDIR}/runtime.log"
+    [ "$status" -ne 0 ]
+    [ "$(cat "${BN_BACKUPDIR}/postgres-host-fail/bntest_doesnotexist.sql")" = previous ]
 }

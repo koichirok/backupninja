@@ -242,7 +242,7 @@ makegpgkeys() {
     export BN_SIGNKEY
 }
 
-# Install a fake podman that runs "exec" and "cp" against the local system,
+# Install a fake podman that runs "exec" against the local system,
 # so handlers can be exercised through a container transport without a
 # container runtime. Invocations are logged to $BATS_TEST_TMPDIR/runtime.log.
 mock_container_runtime() {
@@ -263,9 +263,6 @@ case "$1" in
         done
         shift # container
         exec "$@"
-        ;;
-    cp)
-        exec cp -a "${2#*:}" "$3"
         ;;
 esac
 exit 1

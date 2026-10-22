@@ -99,9 +99,31 @@ EOF
     [[ "$output" = *"Service 'data.*' does not exist"* ]]
 }
 
+write_tar_runtime() {
+    # exec runs tar locally; FAIL_TAR makes the transfer fail midway
+    cat > "${BATS_TEST_TMPDIR}/bin/$1" <<'EOF'
+#!/bin/bash
+printf '%s\n' "$*" >> "$TRANSPORT_LOG"
+[ "$1" = exec ] || exit 0
+shift
+while [[ "$1" == -* ]]; do shift; done
+shift
+if [ -n "$FAIL_TAR" ]; then
+    printf 'garbage'
+    exit 1
+fi
+exec "$@"
+EOF
+    chmod +x "${BATS_TEST_TMPDIR}/bin/$1"
+}
+
 @test "container transport fetches into an explicit host directory" {
     export TRANSPORT_LOG="${BATS_TEST_TMPDIR}/transport.log"
-    write_mock_runtime docker
+    write_tar_runtime docker
+    mkdir -p "${BATS_TEST_TMPDIR}/remote/sub"
+    echo new > "${BATS_TEST_TMPDIR}/remote/db.sql"
+    echo nested > "${BATS_TEST_TMPDIR}/remote/sub/x.sql"
+    ln -s /etc/passwd "${BATS_TEST_TMPDIR}/remote/link"
     cat > "${BATS_TEST_TMPDIR}/transport.conf" <<EOF
 [transport]
 transport = docker
@@ -110,12 +132,59 @@ hostbackupdir = ${BATS_TEST_TMPDIR}/host backup
 EOF
 
     transport_init
-    transport_finalize '/var/backups/postgres'
+    warning() { echo "Warning: $*" >> "${BATS_TEST_TMPDIR}/warnings"; }
+    transport_finalize "${BATS_TEST_TMPDIR}/remote"
 
-    [ -d "${BATS_TEST_TMPDIR}/host backup" ]
-    grep -Fxq cp "$TRANSPORT_LOG"
-    grep -Fxq 'database:/var/backups/postgres/.' "$TRANSPORT_LOG"
-    grep -Fxq "${BATS_TEST_TMPDIR}/host backup/" "$TRANSPORT_LOG"
+    grep -Fxq "exec -i database tar -cf - -C ${BATS_TEST_TMPDIR}/remote ." "$TRANSPORT_LOG"
+    [ "$(cat "${BATS_TEST_TMPDIR}/host backup/db.sql")" = new ]
+    [ "$(cat "${BATS_TEST_TMPDIR}/host backup/sub/x.sql")" = nested ]
+    [ ! -e "${BATS_TEST_TMPDIR}/host backup/link" ]
+    grep -q "Not installing 'link'" "${BATS_TEST_TMPDIR}/warnings"
+    [ -z "$(ls -A "${BATS_TEST_TMPDIR}/host backup" | grep backupninja-fetch)" ]
+}
+
+@test "failed fetch keeps previous host backups" {
+    export TRANSPORT_LOG="${BATS_TEST_TMPDIR}/transport.log" FAIL_TAR=1
+    write_tar_runtime docker
+    mkdir -p "${BATS_TEST_TMPDIR}/remote" "${BATS_TEST_TMPDIR}/host"
+    echo new > "${BATS_TEST_TMPDIR}/remote/db.sql"
+    echo previous > "${BATS_TEST_TMPDIR}/host/db.sql"
+    cat > "${BATS_TEST_TMPDIR}/transport.conf" <<EOF
+[transport]
+transport = docker
+container = database
+hostbackupdir = ${BATS_TEST_TMPDIR}/host
+EOF
+
+    transport_init
+    run transport_finalize "${BATS_TEST_TMPDIR}/remote"
+
+    [ "$status" -eq 2 ]
+    [[ "$output" = *"previous backups were left unchanged"* ]]
+    [ "$(cat "${BATS_TEST_TMPDIR}/host/db.sql")" = previous ]
+    [ "$(ls -A "${BATS_TEST_TMPDIR}/host")" = db.sql ]
+}
+
+@test "fetch is skipped in test mode" {
+    export TRANSPORT_LOG="${BATS_TEST_TMPDIR}/transport.log"
+    write_tar_runtime docker
+    cat > "${BATS_TEST_TMPDIR}/transport.conf" <<EOF
+[transport]
+transport = docker
+container = database
+hostbackupdir = ${BATS_TEST_TMPDIR}/host
+EOF
+
+    transport_init
+    test=1 transport_finalize /nonexistent
+
+    [ ! -e "${BATS_TEST_TMPDIR}/host" ]
+    ! grep -q tar "$TRANSPORT_LOG"
+}
+
+@test "shellquote protects shell metacharacters" {
+    value="it's \$(echo bad); \`x\` \"q\""
+    [ "$(sh -c "printf '%s' $(shellquote "$value")")" = "$value" ]
 }
 
 @test "unsupported transports fail during initialization" {

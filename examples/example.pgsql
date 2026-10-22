@@ -4,7 +4,28 @@
 # Database commands normally run locally. To run them in a container, add one
 # of the following sections. backupdir is the path inside the container.
 # Set hostbackupdir to copy the completed backup to the host; otherwise the
-# container path should be backed by a host-visible volume.
+# container path should be backed by a host-visible volume. The copy only
+# happens when every dump succeeded, and files on the host are replaced only
+# after the whole transfer succeeded. Commands must run as root in the
+# container (do not set user) so that the handler can switch to PGSQLUSER.
+#
+# Example for a Mattermost database in a read-only postgres:*-alpine
+# container started with POSTGRES_USER=mmuser and POSTGRES_DB=mattermost,
+# with a writable tmpfs on /tmp:
+#
+# backupdir = /tmp/backups/mattermost
+# databases = mattermost
+# dbusername = mmuser
+# compress = no
+#
+# [transport]
+# transport = podman
+# container = mattermost-db
+# hostbackupdir = /var/backups/mattermost
+#
+# This writes /var/backups/mattermost/mattermost.sql on the host.
+#
+# Other transports:
 #
 # [transport]
 # transport = docker
@@ -14,7 +35,6 @@
 # [transport]
 # transport = podman
 # container = postgres
-# user = postgres
 # workdir = /var/lib/postgresql
 # environment = NAME=value
 # hostbackupdir = /var/backups/postgres
@@ -26,7 +46,16 @@
 # hostbackupdir = /var/backups/postgres
 
 # backupdir = <dir> (default: /var/backups/postgres)
-# where to dump the backups
+# where to dump the backups. With a container transport this is the path
+# inside the container; use a writable temporary location such as /tmp/...
+# for read-only containers and set hostbackupdir in [transport].
+
+# dbusername = <role> (default: empty)
+# PostgreSQL role used to connect (passed as -U to pg_dump, pg_dumpall and
+# psql). The commands still run as the system user PGSQLUSER. When empty, no
+# role is passed and the role defaults to the name of PGSQLUSER, as before.
+# Set this when the database role differs from the system user, e.g. for the
+# official postgres images with POSTGRES_USER set.
 
 # databases = < all | db1 db2 db3 > (default = all)
 # which databases to backup. should either be the word 'all' or a
@@ -53,4 +82,9 @@
 ### You can also set the following variables in /etc/backupninja.conf:
 # PGSQLDUMP: pg_dump path (default: /usr/bin/pg_dump)
 # PGSQLDUMPALL: pg_dumpall path (default: /usr/bin/pg_dumpall)
-# PGSQLUSER: user running PostgreSQL (default: postgres)
+# PGSQLUSER: system user running the dumps (default: postgres)
+# PSQL: psql path (default: /usr/bin/psql)
+# If PGSQLDUMP, PGSQLDUMPALL, PSQL or GZIP is not found at the configured path
+# in the target, the same command name is looked up in the target's PATH.
+# GZIP_OPTS that the target's gzip does not support (e.g. --rsyncable with
+# BusyBox gzip) are dropped with a warning.

@@ -15,6 +15,7 @@ getconf sqldumpoptions "--lock-tables --complete-insert --add-drop-table --quick
 getconf compress yes
 
 transport_init
+failed=0
 
 # authentication:
 getconf user
@@ -142,7 +143,7 @@ then
             info "Successfully finished hotcopy of all mysql databases"
          else
             warning "$output"
-            warning "Failed to hotcopy all mysql databases"
+            error "Failed to hotcopy all mysql databases"; failed=1
          fi
       fi
    else
@@ -160,7 +161,7 @@ then
                info "Successfully finished hotcopy of mysql database $db"
             else
                warning "$output"
-               warning "Failed to hotcopy mysql database $db"
+               error "Failed to hotcopy mysql database $db"; failed=1
             fi
          fi
       done
@@ -227,7 +228,7 @@ then
             info "Successfully finished dump of mysql database $db"
          else
             warning "$output"
-            warning "Failed to dump mysql databases $db"
+            error "Failed to dump mysql databases $db"; failed=1
          fi
       fi
    done
@@ -246,5 +247,9 @@ then
    fi
 fi
 
-transport_finalize "$backupdir"
+if [ "$failed" == 0 ]; then
+   transport_finalize "$backupdir"
+elif [ "$transport_name" != "local" ] && [ -n "$transport_host_backupdir" ]; then
+   error "Not fetching backups to $transport_host_backupdir because a backup failed; previous backups were left unchanged."
+fi
 return 0

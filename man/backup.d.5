@@ -119,15 +119,31 @@ executable; otherwise "docker compose" is used.
 Commands write to the handler's backupdir inside the target. If that directory
 is on a host-visible volume, no additional setting is necessary. Otherwise,
 set hostbackupdir to copy the contents to that host directory after a
-successful action.
+successful action. Use a writable temporary location such as /tmp for
+backupdir in read-only containers.
 
-For example:
+The copy is streamed with tar through the transport into a staging directory
+below hostbackupdir. Existing files are replaced only after the whole transfer
+succeeded, and only regular files are installed. If any dump fails, nothing is
+copied and the previous host backups are kept. A failed copy is reported as a
+fatal error. The target needs tar and /bin/sh; bash is not required by the
+pgsql handler.
+
+The pgsql handler runs commands as the system user PGSQLUSER. Set dbusername
+in the action file when the PostgreSQL role differs from that user.
+
+For example, for a Mattermost database in a read-only PostgreSQL Alpine
+container:
+
+   backupdir = /tmp/backups/mattermost
+   databases = mattermost
+   dbusername = mmuser
+   compress = no
 
    [transport]
    transport = podman
-   container = postgres
-   user = postgres
-   hostbackupdir = /var/backups/postgres
+   container = mattermost-db
+   hostbackupdir = /var/backups/mattermost
 
 .SH SEE ALSO
 .BR backupninja (1),
