@@ -11,5 +11,6 @@ RUN apt-get update \
         faketime \
         file \
         gawk \
+        gh \
         shellcheck \
     && rm -rf /var/lib/apt/lists/*
