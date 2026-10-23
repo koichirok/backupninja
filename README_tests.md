@@ -73,8 +73,9 @@ provisioning to twenty minutes per VM, and tests to one hour.
 GitHub Actions runs on pull requests targeting `master` (including subsequent
 PR updates), pushes to `master`, and manual dispatches. Feature-branch pushes
 without a PR do not run the suite, avoiding duplicate push and PR runs.
-It uses the same image and runner, caches Docker build layers, enables KVM
-when available, and uploads the logs even when tests fail.
+It runs ShellCheck at warning severity on the test and runner scripts, uses
+the same image and runner, caches Docker build layers, enables KVM when
+available, and uploads the logs even when tests fail.
 `BN_TEST_SKIP_BUILD=1` is reserved for running an already-built
 `backupninja-tests` image, as in CI; rebuild it after changing sources.
 

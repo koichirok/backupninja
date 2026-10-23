@@ -248,7 +248,7 @@ create_test_action() {
     setconfig backupninja.conf reportemail no
     run backupninja --now -f "${BATS_TMPDIR}/backupninja.conf" --run "${BATS_TMPDIR}/backup.d/test.sh"
     [ "$status" -eq 0 ]
-    ! test -f /var/mail/vagrant
+    [[ ! -f /var/mail/vagrant ]]
 }
 
 @test "reports: writes prometheus metrics when reportprom is yes" {

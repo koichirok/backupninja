@@ -1,5 +1,15 @@
 load common
 
+assert_only_skip_messages() {
+    local output=$1 line
+    while IFS= read -r line; do
+        case "$line" in
+            "skipping non-regular file"*) ;;
+            *) return 1 ;;
+        esac
+    done <<< "$output"
+}
+
 begin_rsync() {
     install_pkgs rsync
     if [ ! -d "$BN_SRCDIR" ]; then
@@ -100,9 +110,7 @@ finish_rsync() {
 @test "verify remote backup, short format" {
     run rsync -ain --exclude var --delete "${BN_SRCDIR}/" "${BN_REMOTEUSER}@${BN_REMOTEHOST}:${BN_BACKUPDIR}/testrsync${BN_SRCDIR}/bntest.0"
     [ "$status" -eq 0 ]
-    if [ -n "$output" ]; then
-        [ -z "$(printf '%s\n' "$output" | grep -v '^skipping non-regular file')" ]
-    fi
+    assert_only_skip_messages "$output"
 }
 
 @test "verify remote backup rotation, short format" {
@@ -123,9 +131,7 @@ finish_rsync() {
 @test "verify remote backup, long format" {
     run rsync -ain --exclude var --delete "${BN_SRCDIR}/" "${BN_REMOTEUSER}@${BN_REMOTEHOST}:${BN_BACKUPDIR}/testrsync${BN_SRCDIR}/daily.1"
     [ "$status" -eq 0 ]
-    if [ -n "$output" ]; then
-        [ -z "$(printf '%s\n' "$output" | grep -v '^skipping non-regular file')" ]
-    fi
+    assert_only_skip_messages "$output"
 }
 
 @test "verify remote backup rotation, long format" {
@@ -146,8 +152,5 @@ finish_rsync() {
 @test "verify remote backup, mirror format" {
     run rsync -ain --exclude var --delete "${BN_SRCDIR}/" "${BN_REMOTEUSER}@${BN_REMOTEHOST}:${BN_BACKUPDIR}/testrsync${BN_SRCDIR}/"
     [ "$status" -eq 0 ]
-    if [ -n "$output" ]; then
-        [ -z "$(printf '%s\n' "$output" | grep -v '^skipping non-regular file')" ]
-    fi
+    assert_only_skip_messages "$output"
 }
-

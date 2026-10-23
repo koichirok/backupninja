@@ -28,6 +28,10 @@ jobs:
           tags: backupninja-tests
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - name: ShellCheck test scripts
+        run: >-
+          docker run --rm --entrypoint bash backupninja-tests -c
+          'shellcheck --severity=warning /src/test/*.bash /src/test/*.bats /src/test/*.sh /src/test/docker/*.sh'
       - name: Test runner regression tests
         run: docker run --rm --entrypoint bats backupninja-tests /src/test/docker/runner.bats
       - name: Run tests

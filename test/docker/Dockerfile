@@ -3,7 +3,7 @@ FROM debian:bookworm-slim
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         bats ca-certificates crudini curl genisoimage openssh-client qemu-system-x86 \
-        qemu-utils \
+        qemu-utils shellcheck \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/backupninja-vm

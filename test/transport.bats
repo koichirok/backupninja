@@ -140,7 +140,7 @@ EOF
     [ "$(cat "${BATS_TEST_TMPDIR}/host backup/sub/x.sql")" = nested ]
     [ ! -e "${BATS_TEST_TMPDIR}/host backup/link" ]
     grep -q "Not installing 'link'" "${BATS_TEST_TMPDIR}/warnings"
-    [ -z "$(ls -A "${BATS_TEST_TMPDIR}/host backup" | grep backupninja-fetch)" ]
+    [ -z "$(find "${BATS_TEST_TMPDIR}/host backup" -mindepth 1 -maxdepth 1 -name '*backupninja-fetch*' -print -quit)" ]
 }
 
 @test "failed fetch keeps previous host backups" {
@@ -179,7 +179,9 @@ EOF
     test=1 transport_finalize /nonexistent
 
     [ ! -e "${BATS_TEST_TMPDIR}/host" ]
-    ! grep -q tar "$TRANSPORT_LOG"
+    if grep -q tar "$TRANSPORT_LOG"; then
+        false
+    fi
 }
 
 @test "shellquote protects shell metacharacters" {
@@ -198,7 +200,7 @@ EOF
 @test "POSIX compressed dump detects producer failure and preserves output" {
     target="${BATS_TEST_TMPDIR}/db.sql.gz"
     echo previous > "$target"
-    GZIP=gzip GZIP_OPTS=""
+    export GZIP=gzip GZIP_OPTS=""
     script=$(transport_dump_command "( printf partial; exit 1 )" "$target" yes)
     run sh -c "$script"
     [ "$status" -ne 0 ]
@@ -209,7 +211,7 @@ EOF
 @test "POSIX compressed dump detects compressor failure and preserves output" {
     target="${BATS_TEST_TMPDIR}/db.sql.gz"
     echo previous > "$target"
-    GZIP=false GZIP_OPTS=""
+    export GZIP=false GZIP_OPTS=""
     script=$(transport_dump_command "printf complete" "$target" yes)
     run sh -c "$script"
     [ "$status" -ne 0 ]

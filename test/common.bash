@@ -4,6 +4,8 @@ setup() {
     readonly BN_REMOTEUSER="vagrant"
     readonly BN_REMOTEHOST="bntest1"
     readonly BN_BACKUPDIR="/var/backups"
+    # Used by the handler-specific Bats suites that load this file.
+    # shellcheck disable=SC2034
     readonly BN_SRCDIR="/var/cache/bntest"
 
     # Write a basic backupninja config file
@@ -81,7 +83,8 @@ setconfig() {
         local CONFIGFILE="${BATS_TMPDIR}/$1"
         shift
     else
-        local COMP=$(basename -s .bats "${BATS_TEST_FILENAME}")
+        local COMP
+        COMP=$(basename -s .bats "${BATS_TEST_FILENAME}")
         local CONFIGFILE="${BATS_TMPDIR}/backup.d/test.${COMP}"
     fi
     if [ -n "$3" ]; then
@@ -101,7 +104,8 @@ setconfig_repeat() {
         local CONFIGFILE="${BATS_TMPDIR}/$1"
         shift
     else
-        local COMP=$(basename -s .bats "${BATS_TEST_FILENAME}")
+        local COMP
+        COMP=$(basename -s .bats "${BATS_TEST_FILENAME}")
         local CONFIGFILE="${BATS_TMPDIR}/backup.d/test.${COMP}"
     fi
     local SECTION="$1"
@@ -120,7 +124,8 @@ delconfig() {
         local CONFIGFILE="${BATS_TMPDIR}/$1"
         shift
     else
-        local COMP=$(basename -s .bats "${BATS_TEST_FILENAME}")
+        local COMP
+        COMP=$(basename -s .bats "${BATS_TEST_FILENAME}")
         local CONFIGFILE="${BATS_TMPDIR}/backup.d/test.${COMP}"
     fi
     if [ -n "$2" ]; then
@@ -170,7 +175,8 @@ runaction() {
     if [ -n "$1" ]; then
         local ACTIONFILE="$1"
     else
-        local ACTIONFILE="test.$(basename -s .bats "${BATS_TEST_FILENAME}")"
+        local ACTIONFILE
+        ACTIONFILE="test.$(basename -s .bats "${BATS_TEST_FILENAME}")"
     fi
     # run action
     if [ -f "${BATS_TMPDIR}/backup.d/${ACTIONFILE}" ]; then
@@ -210,6 +216,8 @@ not_greplog() {
 makegpgkeys() {
     # encryption key
     run gpg --keyid-format long -k encrypt@bntest0 2>/dev/null
+    # Bats' run helper sets status.
+    # shellcheck disable=SC2154
     if [ "$status" -eq 2 ]; then
         gpg --batch --gen-key <<"        EOF"
             Key-Type: 1
@@ -226,6 +234,7 @@ makegpgkeys() {
     export BN_ENCRYPTKEY
     # signing key
     run gpg --keyid-format long -k sign@bntest0 2>/dev/null
+    # shellcheck disable=SC2154
     if [ "$status" -eq 2 ]; then
         gpg --batch --gen-key <<"        EOF"
             Key-Type: 1
@@ -272,7 +281,7 @@ EOF
 }
 
 install_pkgs() {
-    TMPDIR=/tmp DEBIAN_FRONTEND=noninteractive apt-get -qq install $@
+    TMPDIR=/tmp DEBIAN_FRONTEND=noninteractive apt-get -qq install "$@"
 }
 
 make_rootfs() {

@@ -34,7 +34,7 @@ EOF
 
 finish_sys() {
     # remove test artifacts
-    rm -rf ${BN_BACKUPDIR}/*
+    rm -rf "${BN_BACKUPDIR:?}/"*
     # cleanup lvm
     lvremove -f vgtest/lvtest
     vgremove vgtest

@@ -77,7 +77,7 @@ pgconfig() {
     local dump="${BN_BACKUPDIR}/mattermost/mattermost.sql"
     [ -s "$dump" ]
     grep -q '^COPY public.posts' "$dump"
-    [ -z "$(ls -A "${BN_BACKUPDIR}/mattermost" | grep -v '^mattermost.sql$')" ]
+    [ -z "$(find "${BN_BACKUPDIR}/mattermost" -mindepth 1 -maxdepth 1 ! -name mattermost.sql -print -quit)" ]
     run podman exec "$BN_PG_CONTAINER" ls -A /tmp/backups/mattermost
     [ "$output" = mattermost.sql ]
 
