@@ -1,6 +1,4 @@
-load common
-
-setup_transport() {
+setup() {
     libdirectory="${BATS_TEST_DIRNAME}/../lib"
     . "$libdirectory/tools"
     setfile "${BATS_TEST_TMPDIR}/transport.conf"
@@ -97,6 +95,23 @@ EOF
 
     [ "$status" -eq 2 ]
     [[ "$output" = *"Service 'data.*' does not exist"* ]]
+}
+
+@test "docker compose rejects failed validation even when stdout contains the service" {
+    export TRANSPORT_LOG="${BATS_TEST_TMPDIR}/transport.log"
+    write_mock_runtime docker
+    printf 'echo database\nexit 1\n' >> "${BATS_TEST_TMPDIR}/bin/docker"
+    mkdir "${BATS_TEST_TMPDIR}/compose"
+    cat > "${BATS_TEST_TMPDIR}/transport.conf" <<EOF
+[transport]
+transport = docker-compose
+docker_compose = docker
+projectdir = ${BATS_TEST_TMPDIR}/compose
+service = database
+EOF
+    run transport_init
+    [ "$status" -eq 2 ]
+    [[ "$output" = *"Cannot list services"* ]]
 }
 
 write_tar_runtime() {
@@ -205,7 +220,7 @@ EOF
     run sh -c "$script"
     [ "$status" -ne 0 ]
     [ "$(cat "$target")" = previous ]
-    [ ! -e "${BATS_TEST_TMPDIR}/.db.sql.gz.partial" ]
+    [ -z "$(find "$BATS_TEST_TMPDIR" -name '*.partial*' -print)" ]
 }
 
 @test "POSIX compressed dump detects compressor failure and preserves output" {
@@ -216,7 +231,7 @@ EOF
     run sh -c "$script"
     [ "$status" -ne 0 ]
     [ "$(cat "$target")" = previous ]
-    [ ! -e "${BATS_TEST_TMPDIR}/.db.sql.gz.partial" ]
+    [ -z "$(find "$BATS_TEST_TMPDIR" -name '*.partial*' -print)" ]
 }
 
 @test "POSIX dump propagates an early failure in a multi-part producer" {
@@ -238,4 +253,66 @@ EOF
 
     [ "$status" -eq 2 ]
     [[ "$output" = *"Unsupported transport 'teleport'"* ]]
+}
+
+@test "dump uses a private unique temporary file and ignores an old partial symlink" {
+    target="${BATS_TEST_TMPDIR}/db.sql"
+    echo untouched > "${BATS_TEST_TMPDIR}/unrelated"
+    ln -s "${BATS_TEST_TMPDIR}/unrelated" "${BATS_TEST_TMPDIR}/.db.sql.partial"
+    script=$(transport_dump_command "printf complete" "$target" no)
+    run sh -c "$script"
+    [ "$status" -eq 0 ]
+    [ "$(cat "$target")" = complete ]
+    [ "$(stat -c %a "$target")" = 600 ]
+    [ "$(cat "${BATS_TEST_TMPDIR}/unrelated")" = untouched ]
+    [ -L "${BATS_TEST_TMPDIR}/.db.sql.partial" ]
+    [ -z "$(find "$BATS_TEST_TMPDIR" -name '*.partial.*' -print)" ]
+}
+
+@test "dump handles a relative filename and a quoted compressor executable" {
+    mkdir "${BATS_TEST_TMPDIR}/bin dir"
+    ln -s "$(command -v gzip)" "${BATS_TEST_TMPDIR}/bin dir/gzip's"
+    GZIP="${BATS_TEST_TMPDIR}/bin dir/gzip's"
+    GZIP_OPTS=-n
+    script=$(transport_dump_command "printf complete" db.sql.gz yes)
+    cd "$BATS_TEST_TMPDIR" || return
+    run sh -c "$script"
+    [ "$status" -eq 0 ]
+    [ "$(gzip -dc db.sql.gz)" = complete ]
+}
+
+@test "failed dump installation is reported and removes the unique partial file" {
+    mkdir "${BATS_TEST_TMPDIR}/db.sql"
+    script=$(transport_dump_command "printf complete" "${BATS_TEST_TMPDIR}/db.sql" no)
+    run sh -c "$script"
+    [ "$status" -ne 0 ]
+    [ -d "${BATS_TEST_TMPDIR}/db.sql" ]
+    [ -z "$(find "$BATS_TEST_TMPDIR" -name '*.partial*' -print)" ]
+}
+
+@test "fetch rejects host parent symlinks and directory collisions before replacing backups" {
+    export TRANSPORT_LOG="${BATS_TEST_TMPDIR}/transport.log"
+    write_tar_runtime docker
+    mkdir -p "${BATS_TEST_TMPDIR}/remote/sub" "${BATS_TEST_TMPDIR}/host" "${BATS_TEST_TMPDIR}/outside"
+    echo new > "${BATS_TEST_TMPDIR}/remote/a.sql"
+    echo new > "${BATS_TEST_TMPDIR}/remote/sub/db.sql"
+    echo previous > "${BATS_TEST_TMPDIR}/host/a.sql"
+    cat > "${BATS_TEST_TMPDIR}/transport.conf" <<EOF
+[transport]
+transport = docker
+container = database
+hostbackupdir = ${BATS_TEST_TMPDIR}/host
+EOF
+    transport_init
+    ln -s "${BATS_TEST_TMPDIR}/outside" "${BATS_TEST_TMPDIR}/host/sub"
+    run transport_finalize "${BATS_TEST_TMPDIR}/remote"
+    [ "$status" -eq 2 ]
+    [ "$(cat "${BATS_TEST_TMPDIR}/host/a.sql")" = previous ]
+    [ ! -e "${BATS_TEST_TMPDIR}/outside/db.sql" ]
+    rm "${BATS_TEST_TMPDIR}/host/sub"
+    mkdir -p "${BATS_TEST_TMPDIR}/host/sub/db.sql"
+    run transport_finalize "${BATS_TEST_TMPDIR}/remote"
+    [ "$status" -eq 2 ]
+    [ "$(cat "${BATS_TEST_TMPDIR}/host/a.sql")" = previous ]
+    [ -z "$(find "${BATS_TEST_TMPDIR}/host" -name '.backupninja-fetch.*' -print)" ]
 }

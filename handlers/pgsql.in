@@ -14,7 +14,7 @@ getconf format plain
 getconf dbusername
 
 transport_init
-localhost=`runcmd hostname`
+localhost=$(runcmd hostname) || fatal "Can't determine the backup target's hostname."
 
 # Make sure that the system to backup has the needed executables
 if [ "$databases" == "all" ] || [ "$format" != "plain" ]; then
@@ -38,12 +38,14 @@ fi
 runcmd test -d "$backupdir" || fatal "Backup directory '$backupdir' does not exist, and could not be created."
 
 # PGSQLUSER is the system user running the dumps, not necessarily a database role
-pguid=`runcmd getent passwd "$PGSQLUSER" | @AWK@ -F: '{print $3}'`
+pgpasswd=$(runcmd getent passwd "$PGSQLUSER") || fatal "No system user called $PGSQLUSER."
+pguid=$(printf '%s\n' "$pgpasswd" | @AWK@ -F: '{print $3}')
 [ -n "$pguid" ] || fatal "No system user called $PGSQLUSER. Set PGSQLUSER to the system user owning PostgreSQL and dbusername to the database role."
 
 # give backup dir the good uid and permissions
 debug "chown $pguid $backupdir"
-runcmd chown "$pguid" "$backupdir" || fatal "Can't change the owner of '$backupdir' to $PGSQLUSER."
+runcmd sh -c '[ "$(id -u)" != 0 ] && [ "$(id -u)" = "$1" ] || chown "$1" "$2"' sh "$pguid" "$backupdir" || \
+   fatal "Can't change the owner of '$backupdir' to $PGSQLUSER."
 debug "chmod 700 $backupdir"
 runcmd chmod 700 "$backupdir" || fatal "Can't change the permissions of '$backupdir'."
 
@@ -56,7 +58,9 @@ fi
 # used so that minimal images without bash work; options come before the user
 # name for BusyBox su.
 function pgsql_su() {
-   runcmd su -l -s /bin/sh -c "$1" "$PGSQLUSER"
+   local login=""
+   [ "$transport_name" != local ] || login=login
+   transport_run_as "$PGSQLUSER" "$1" "$login"
 }
 
 # Dump with the shell command $2 into the file $3, described as $1. The output
@@ -88,9 +92,9 @@ function pgsql_dump() {
 dumpglobals="no"
 if [ "$databases" = "all" ] && [ "$format" != "plain" ]; then
    if [ -n "$dbusername" ]; then
-      listcmd="$PSQL -At $connectopts -d postgres"
+      listcmd="$(shellquote "$PSQL") -At $connectopts -d postgres"
    else
-      listcmd="$PSQL -AtU $PGSQLUSER"
+      listcmd="$(shellquote "$PSQL") -AtU $(shellquote "$PGSQLUSER")"
    fi
    listcmd="$listcmd -c 'SELECT datname FROM pg_database WHERE NOT datistemplate'"
    debug "$listcmd"
@@ -109,7 +113,7 @@ suffix=""
 
 # if $databases = all, use pg_dumpall
 if [ "$databases" == "all" ]; then
-   pgsql_dump "pgsql cluster" "$PGSQLDUMPALL $connectopts" "$backupdir/${localhost}-all.sql$suffix"
+   pgsql_dump "pgsql cluster" "$(shellquote "$PGSQLDUMPALL") $connectopts" "$backupdir/${localhost}-all.sql$suffix"
 
 # else use pg_dump on each specified database
 else
@@ -117,7 +121,7 @@ else
    # so we track the database=all selection in dumpglobals which tells us
    # to also dump the roles and tablespaces via pg_dumpall -g
    if [ "$dumpglobals" = "yes" ]; then
-      pgsql_dump "pgsql globals (roles and tablespaces)" "$PGSQLDUMPALL $connectopts -g" "$backupdir/globals.sql$suffix"
+      pgsql_dump "pgsql globals (roles and tablespaces)" "$(shellquote "$PGSQLDUMPALL") $connectopts -g" "$backupdir/globals.sql$suffix"
    fi
    for db in $databases; do
       dumpext="sql"
@@ -132,7 +136,7 @@ else
          disablecustomcompress="--compress=0"
       fi
       pgsql_dump "pgsql database ${db}" \
-         "$PGSQLDUMP $connectopts --format=$format ${disablecustomcompress} $(shellquote "$db")" \
+         "$(shellquote "$PGSQLDUMP") $connectopts --format=$(shellquote "$format") ${disablecustomcompress} $(shellquote "$db")" \
          "$backupdir/${db}.${dumpext}$suffix"
    done
 fi
@@ -142,4 +146,4 @@ if [ "$failed" == 0 ]; then
 elif [ "$transport_name" != "local" ] && [ -n "$transport_host_backupdir" ]; then
    error "Not fetching backups to $transport_host_backupdir because a dump failed; previous backups were left unchanged."
 fi
-return 0
+return "$failed"

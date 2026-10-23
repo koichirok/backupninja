@@ -89,12 +89,24 @@ function getconf() {
 #####################################################
 ## COMMAND TRANSPORT
 
+# Reject unsupported transports before a host-only handler has any side effects.
+function transport_check_handler() {
+   local handler="$1" transport previous_section="$CURRENT_SECTION"
+   setsection transport
+   getconf transport local
+   setsection "$previous_section"
+   case "$handler" in
+      mysql|pgsql|gitlab) return 0 ;;
+   esac
+   [ "$transport" = local ] || fatal "Handler '$handler' does not support command transport '$transport'; refusing to run on the host."
+}
+
 # Initialize command execution for the action's optional [transport] section.
 # Handlers use runcmd instead of invoking commands directly.
 function transport_init() {
    local previous_section="$CURRENT_SECTION"
    local transport container service projectdir user workdir hostbackupdir
-   local docker podman docker_compose environment value
+   local docker podman docker_compose environment value services
 
    setsection transport
    getconf transport local
@@ -146,7 +158,9 @@ function transport_init() {
             "$docker" compose version >/dev/null 2>&1 || fatal "Docker Compose is not available through '$docker compose'."
             transport_compose_cmd=("$docker" compose)
          fi
-         (cd "$projectdir" && "${transport_compose_cmd[@]}" config --services) | grep -Fxq -- "$service" || \
+         services=$(cd "$projectdir" && "${transport_compose_cmd[@]}" config --services) || \
+            fatal "Cannot list services in Docker Compose project '$projectdir'."
+         grep -Fxq -- "$service" <<< "$services" || \
             fatal "Service '$service' does not exist in Docker Compose project '$projectdir'."
          transport_cmd=("${transport_compose_cmd[@]}" exec -T)
          [ -z "$user" ] || transport_cmd+=(--user "$user")
@@ -173,6 +187,27 @@ function runcmd() {
    fi
 }
 
+# Avoid su when exec already selected the required system user. Container
+# commands must retain the transport's environment and working directory.
+function transport_run_as() {
+   local user="$1" script="$2" login="${3:-}"
+   runcmd sh -c '
+      wanted=$(id -u "$1") || exit
+      current=$(id -u) || exit
+      if [ "$current" = "$wanted" ]; then
+         exec /bin/sh -c "$2"
+      fi
+      if [ "$current" != 0 ]; then
+         echo "Cannot run commands as $1: transport user is not root." >&2
+         exit 1
+      fi
+      if [ "$3" = login ]; then
+         exec su -l -s /bin/sh -c "$2" "$1"
+      fi
+      exec su -s /bin/sh -c "$2" "$1"
+   ' sh "$user" "$script" "$login"
+}
+
 # Quote a value for safe use in a POSIX shell command string.
 function shellquote() {
    local q="'"
@@ -190,7 +225,7 @@ function transport_resolve() {
 
 function transport_gzip_init() {
    GZIP=$(transport_resolve "$GZIP") || fatal "Can't find $GZIP in the backup target."
-   if [ -n "$GZIP_OPTS" ] && ! runcmd sh -c "$GZIP $GZIP_OPTS" </dev/null >/dev/null 2>&1; then
+   if [ -n "$GZIP_OPTS" ] && ! runcmd sh -c "$(shellquote "$GZIP") $GZIP_OPTS" </dev/null >/dev/null 2>&1; then
       warning "$GZIP does not support the options '$GZIP_OPTS', compressing without them."
       GZIP_OPTS=""
    fi
@@ -200,15 +235,25 @@ function transport_gzip_init() {
 # output only on success. The producer must itself propagate command failures.
 function transport_dump_command() {
    local dumpcmd="$1" target="$2" compress="$3"
-   local qpartial qtarget script
-   qpartial=$(shellquote "${target%/*}/.${target##*/}.partial")
+   local qtemplate qtarget script directory
+   directory="${target%/*}"
+   [ "$directory" != "$target" ] || directory=.
+   qtemplate=$(shellquote "$directory/.${target##*/}.partial.XXXXXX")
    qtarget=$(shellquote "$target")
    if [ "$compress" = yes ]; then
-      script="rc=\$( { { $dumpcmd; echo \$? >&3; } | $GZIP $GZIP_OPTS > $qpartial; } 3>&1 ) && [ \"\$rc\" = 0 ]"
+      script="rc=\$( { { $dumpcmd; echo \$? >&3; } | $(shellquote "$GZIP") $GZIP_OPTS > \"\$partial\"; } 3>&1 ) && [ \"\$rc\" = 0 ]"
    else
-      script="$dumpcmd > $qpartial"
+      script="( $dumpcmd ) > \"\$partial\""
    fi
-   printf '%s\n' "if $script; then mv -f $qpartial $qtarget; else rm -f $qpartial; exit 1; fi"
+   printf '%s\n' "umask 077
+partial=\$(mktemp $qtemplate) || exit 1
+trap 'rm -f \"\$partial\" || exit 1' 0
+trap 'exit 1' 1 2 15
+if $script; then
+   [ ! -d $qtarget ] && mv -f \"\$partial\" $qtarget
+else
+   exit 1
+fi"
 }
 
 # Copy the contents of remote_path in the transport target to hostbackupdir.
@@ -218,7 +263,7 @@ function transport_dump_command() {
 # backups untouched.
 function transport_finalize() {
    local remote_path="$1"
-   local staging file
+   local staging file parent
    local -a status
 
    [ "$transport_name" != "local" ] || return 0
@@ -242,6 +287,26 @@ function transport_finalize() {
       fatal "Failed to fetch '$remote_path' from the $transport_name target into '$transport_host_backupdir'; previous backups were left unchanged."
    fi
 
+   # Validate destinations before replacing any files. A host-side symlink
+   # must not redirect installation outside the requested backup directory.
+   while IFS= read -r -d '' file; do
+      file="${file#./}"
+      [ -f "$staging/$file" ] && [ ! -L "$staging/$file" ] || continue
+      parent=$(dirname "$file")
+      while [ "$parent" != . ]; do
+         if [ -L "$transport_host_backupdir/$parent" ] || \
+            { [ -e "$transport_host_backupdir/$parent" ] && [ ! -d "$transport_host_backupdir/$parent" ]; }; then
+            rm -rf "$staging"
+            fatal "Unsafe host backup parent '$parent'; previous backups were left unchanged."
+         fi
+         parent=$(dirname "$parent")
+      done
+      if [ -d "$transport_host_backupdir/$file" ]; then
+         rm -rf "$staging"
+         fatal "Host backup destination '$file' is a directory; previous backups were left unchanged."
+      fi
+   done < <(cd "$staging" && find . ! -type d -print0)
+
    # Only regular files are installed; links from the target are not trusted.
    while IFS= read -r -d '' file; do
       file="${file#./}"
@@ -250,10 +315,10 @@ function transport_finalize() {
          continue
       fi
       mkdir -p "$transport_host_backupdir/$(dirname "$file")" && \
-         mv -f "$staging/$file" "$transport_host_backupdir/$file" || {
+         mv -fT "$staging/$file" "$transport_host_backupdir/$file" || {
             rm -rf "$staging"
             fatal "Failed to install '$file' into '$transport_host_backupdir'."
          }
    done < <(cd "$staging" && find . ! -type d -print0)
-   rm -rf "$staging"
+   rm -rf "$staging" || fatal "Cannot remove backup staging directory '$staging'."
 }

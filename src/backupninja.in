@@ -368,6 +368,7 @@ function process_action() {
          # call the handler:
          echo_debug_msg=1
          (
+            transport_check_handler "$suffix"
             . $scriptdirectory/$suffix $file
          ) 2>&1 | (
             while read a; do

@@ -78,6 +78,7 @@ EOF
 }
 
 teardown_container_shell() {
+    podman exec "$BN_ALPINE_CONTAINER" rm -f /root/.my.cnf
     cleanup_backups local
 }
 
@@ -168,6 +169,7 @@ EOF
     echo 'MYSQLHOTCOPY = /tmp/hotcopy' >> "${BATS_TMPDIR}/backupninja.conf"
     setconfig backup.d/test.mysql sqldump no
     setconfig backup.d/test.mysql hotcopy yes
+    delconfig backup.d/test.mysql configfile
     for databases in app all; do
         setconfig backup.d/test.mysql databases "$databases"
         runaction test.mysql
@@ -191,4 +193,24 @@ EOF
     [ "$status" -ne 0 ]
     greplog 'Error: Failed to create GitLab backup'
     [ "$(sha256sum "${BN_BACKUPDIR}/gitlab-host/archive.tar")" = "$previous" ]
+}
+
+@test "MySQL explicit credentials work as a non-root transport user without touching root defaults" {
+    podman exec -i "$BN_ALPINE_CONTAINER" mariadb --defaults-file=/tmp/client.cnf <<'EOF'
+CREATE USER IF NOT EXISTS 'bntest_dump'@'localhost' IDENTIFIED BY 'test"quote\slash#word';
+GRANT SELECT, SHOW VIEW, TRIGGER, LOCK TABLES ON app.* TO 'bntest_dump'@'localhost';
+EOF
+    # SQL interprets backslash escapes, so the actual password has no backslash.
+    podman exec "$BN_ALPINE_CONTAINER" sh -c 'printf "[client]\nuser=unrelated\npassword=unrelated\n" > /root/.my.cnf; chmod 600 /root/.my.cnf'
+    previous=$(podman exec "$BN_ALPINE_CONTAINER" sha256sum /root/.my.cnf)
+    setconfig backup.d/test.mysql backupdir /tmp/mysql-nonroot
+    setconfig backup.d/test.mysql dbusername bntest_dump
+    setconfig backup.d/test.mysql dbpassword 'test"quoteslash#word'
+    setconfig backup.d/test.mysql transport user mysql
+    runaction test.mysql
+    [ "$status" -eq 0 ]
+    [ "$(podman exec "$BN_ALPINE_CONTAINER" sha256sum /root/.my.cnf)" = "$previous" ]
+    [ -s "${BN_BACKUPDIR}/mysql-host/sqldump/app.sql" ]
+    podman exec "$BN_ALPINE_CONTAINER" sh -c 'test -z "$(find /tmp -name "backupninja-mysql.*")"'
+    not_greplog 'test"quoteslash#word'
 }

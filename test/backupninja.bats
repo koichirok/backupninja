@@ -360,3 +360,16 @@ create_test_action() {
     run backupninja --now -f "${BATS_TMPDIR}/backupninja.conf" --run "${BATS_TMPDIR}/backup.d/test.sh"
     [ "$status" -eq 0 ]
 }
+
+@test "transport: host-only handler is rejected before any host-side command" {
+    create_test_action touch "${BATS_TEST_TMPDIR}/unexpected-host-action"
+    cat >> "${BATS_TMPDIR}/backup.d/test.sh" <<'EOF'
+[transport]
+transport = podman
+container = database
+EOF
+    runaction test.sh
+    [ "$status" -eq 2 ]
+    greplog "Fatal: Handler 'sh' does not support command transport 'podman'"
+    [ ! -e "${BATS_TEST_TMPDIR}/unexpected-host-action" ]
+}

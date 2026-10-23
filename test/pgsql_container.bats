@@ -180,3 +180,14 @@ EOF
     [ "$(cat "${BN_BACKUPDIR}/mattermost/mattermost.sql")" = previous ]
     [ "$(ls -A "${BN_BACKUPDIR}/mattermost")" = mattermost.sql ]
 }
+
+@test "non-root postgres transport user can dump and fetch without su or chown privileges" {
+    pgconfig backupdir /tmp/backups-nonroot
+    pgconfig transport user postgres
+    pgconfig transport workdir /tmp
+    pgconfig transport environment PGAPPNAME=backupninja-regression
+    runaction test.pgsql
+    [ "$status" -eq 0 ]
+    not_greplog "Error:"
+    [ -s "${BN_BACKUPDIR}/mattermost/mattermost.sql" ]
+}

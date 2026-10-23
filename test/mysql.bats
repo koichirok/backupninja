@@ -139,7 +139,7 @@ teardown_mysql() {
     greplog "Info: Successfully finished dump of mysql database bntest_v11vJj"
     not_greplog "Warning:"
     [ "$(zgrep -c 'INSERT INTO' "${BN_BACKUPDIR}/mysql-host/sqldump/bntest_v11vJj.sql.gz")" -eq 47 ]
-    grep -q '^exec -i bntest-mysql su -s /bin/sh -c ' "${BATS_TEST_TMPDIR}/runtime.log"
+    grep -q '^exec -i bntest-mysql sh -c ' "${BATS_TEST_TMPDIR}/runtime.log"
     grep -Fxq "exec -i bntest-mysql tar -cf - -C ${BN_BACKUPDIR}/mysql-container ." \
         "${BATS_TEST_TMPDIR}/runtime.log"
 }
