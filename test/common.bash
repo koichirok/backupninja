@@ -1,7 +1,7 @@
 setup() {
 
     # declare some constants
-    readonly BN_REMOTEUSER="vagrant"
+    readonly BN_REMOTEUSER="backupninja"
     readonly BN_REMOTEHOST="bntest1"
     readonly BN_BACKUPDIR="/var/backups"
     # Used by the handler-specific Bats suites that load this file.
@@ -61,7 +61,7 @@ teardown() {
     rm -rf "${BATS_TMPDIR}/backupninja.conf" \
         "${BATS_TMPDIR}/log" \
         "${BATS_TMPDIR}/backup.d" \
-        /var/mail/vagrant
+        /var/mail/backupninja
 
     # Invoke component-specific test teardown
     if type "teardown_${COMP}" 2>&1 | grep -q "function"; then
@@ -137,7 +137,7 @@ delconfig() {
     fi
 }
 
-# execute command on remote vagrant host
+# execute command on remote test host
 remote_command() {
     ssh "${BN_REMOTEUSER}@${BN_REMOTEHOST}" "$1"
 }

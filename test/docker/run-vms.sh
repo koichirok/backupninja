@@ -46,7 +46,7 @@ users:
   - name: root
     ssh_authorized_keys:
       - $key
-  - name: vagrant
+  - name: backupninja
     uid: 1000
     shell: /bin/bash
     sudo: ALL=(ALL) NOPASSWD:ALL
@@ -123,15 +123,15 @@ done
 scp "${ssh_opts[@]}" -P 2222 "$work/key" root@127.0.0.1:/root/.ssh/id_ed25519
 tar -C /src --exclude=.git --exclude=tmp --exclude=test-results -cf - . |
     ssh "${ssh_opts[@]}" -p 2222 root@127.0.0.1 \
-        'mkdir /vagrant; tar -xf - -C /vagrant'
+        'mkdir /src; tar -xf - -C /src'
 
 ssh "${ssh_opts[@]}" -p 2222 root@127.0.0.1 \
-    'cd /vagrant && ./autogen.sh &&
+        'cd /src && ./autogen.sh &&
      ./configure --prefix=/usr --mandir=/usr/share/man --sysconfdir=/etc \
        --localstatedir=/var --libdir=/usr/lib --libexecdir=/usr/lib &&
      make clean && make && make install' 2>&1 | tee /results/build.log
 
-command='cd /vagrant && timeout 3600 bash test/test.sh'
+command='cd /src && timeout 3600 bash test/test.sh'
 for handler in "$@"; do
     if [[ ! "$handler" =~ ^[a-z][a-z0-9_-]*$ ]]; then
         echo "Invalid handler: $handler" >&2

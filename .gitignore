@@ -54,7 +54,6 @@ man/Makefile
 src/Makefile
 src/backupninja
 src/ninjahelper
-.vagrant
 *.swp
 *.swo
 test-results/

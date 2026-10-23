@@ -1,5 +1,4 @@
 .git
-.vagrant
 tmp
 test-results
 autom4te.cache

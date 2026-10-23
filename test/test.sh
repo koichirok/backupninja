@@ -5,8 +5,8 @@ set -euo pipefail
 
 # This is meant to be run inside a development environment,
 # so give the user a chance to bail
-if [ ! -d "/vagrant" ]; then
-    read -p "This doesn't look like a test environment (Vagrant). Continue anyway? " -n 1 -r
+if [ ! -d "/src" ]; then
+    read -p "This doesn't look like a disposable test VM. Continue anyway? " -n 1 -r
 	if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         exit 0
     fi

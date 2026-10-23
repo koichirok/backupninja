@@ -12,7 +12,7 @@ apt-get install -y --no-install-recommends \
     borgbackup duplicity rdiff-backup restic rsync sudo
 install -m 0755 /root/rest-server /usr/local/bin/rest-server
 mkdir -p /var/backups
-chown vagrant: /var/backups
+chown backupninja: /var/backups
 printf 'Port 22\nPort 7722\n' > /etc/ssh/sshd_config.d/bntest.conf
 systemctl restart ssh
 
@@ -22,7 +22,7 @@ if [[ "$(hostname)" == bntest0 ]]; then
         cstream trickle gnupg mmdebstrap ncompress zstd bzip2 xz-utils python3-paramiko \
         debconf-utils hwinfo lvm2 cryptsetup-bin parted fdisk file \
         default-mysql-server postgresql prometheus-node-exporter
-    echo 'root: vagrant' >> /etc/aliases
+    echo 'root: backupninja' >> /etc/aliases
     newaliases
     systemctl restart exim4
     echo '10.0.2.2 bntest1' >> /etc/hosts
