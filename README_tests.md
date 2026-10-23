@@ -91,3 +91,24 @@ docker run --rm --entrypoint bats backupninja-tests /src/test/docker/runner.bats
 Please report any problems with the test suite on the issue tracker at:
 
     https://0xacab.org/liberate/backupninja/-/issues
+
+Isolated command-transport regressions
+=====================================
+
+The shared transport and handler mock suites can also run without root,
+containers, database servers, mounts, or package installation:
+
+```sh
+make -C lib tools
+make -C handlers mysql pgsql gitlab
+bats test/transport.bats test/handler_transport.bats
+shellcheck --severity=warning test/*.bash test/*.bats test/*.sh test/docker/*.sh
+```
+
+The handler mocks exercise local, Docker, Podman, and both Compose command
+forms, target-only executable lookup, non-root execution, environment and
+working-directory preservation, credential handling, exit status, cleanup,
+and preservation of previous backups. Unsupported handlers are checked
+before host-side execution. These tests do not replace the VM suites that
+restore real database dumps, including the Bash-free Alpine and non-root
+container cases.

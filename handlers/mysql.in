@@ -24,131 +24,104 @@ if [ "$sqldump" = yes ]; then
 fi
 
 function mysql_su() {
-   runcmd su -s /bin/sh -c "$1" "$user"
+   transport_run_as "$user" "$1"
 }
 
-# authentication:
+# The OS user and database login are independent.
 getconf user
+configured_user="$user"
 getconf dbusername
 getconf dbpassword
-getconf configfile /etc/mysql/debian.cnf
-
-
-## Prepare ignore part of the command
-## This only works for mysqldump at the moment
+getconf configfile
+explicitconfig="$configfile"
+configfile="${configfile:-/etc/mysql/debian.cnf}"
+if [ -z "$user" ]; then
+   user=$(runcmd id -un) || fatal "Can't determine the MySQL system user in the backup target."
+fi
+if [ "$hotcopy" = yes ]; then
+   MYSQLHOTCOPY=$(transport_resolve "$MYSQLHOTCOPY") || fatal "Can't find $MYSQLHOTCOPY in the backup target."
+   [ -z "$dbusername$dbpassword$explicitconfig" ] || \
+      fatal "mysqlhotcopy does not support defaults-file authentication; use user with ~/.my.cnf, or disable hotcopy."
+fi
+[ -n "$dbusername" ] || [ -z "$dbpassword" ] || fatal "dbpassword requires dbusername."
 
 ignore=''
 for i in $ignores $nodata; do
-   ignore="$ignore --ignore-table=$i"
+   ignore="$ignore --ignore-table=$(shellquote "$i")"
 done
 
-# create backup dirs in the selected transport target
-runcmd test -d "$backupdir" || runcmd mkdir -p "$backupdir"
-runcmd test -d "$backupdir" || fatal "Backup directory '$backupdir'"
+# Create directories as the dump's OS user, not the database login or host user.
+mysql_su "mkdir -p $(shellquote "$backupdir")" || fatal "Can't create backup directory '$backupdir'."
 hotdir="$backupdir/hotcopy"
 dumpdir="$backupdir/sqldump"
-
-[ "$sqldump" == "no" ] || runcmd test -d "$dumpdir" || runcmd mkdir -p "$dumpdir"
-[ "$hotcopy" == "no" ] || runcmd test -d "$hotdir" || runcmd mkdir -p "$hotdir"
+[ "$sqldump" = no ] || mysql_su "mkdir -p $(shellquote "$dumpdir")" || fatal "Can't create '$dumpdir'."
+[ "$hotcopy" = no ] || mysql_su "mkdir -p $(shellquote "$hotdir")" || fatal "Can't create '$hotdir'."
 
 #######################################################################
 ## AUTHENTICATION
 
-#
-# one of three authentication methods:
-# 1. setting the user, so that /home/user/.my.cnf is used.
-# 2. specifying the user and password in the handler config,
-#    which generates a temporary .my.cnf in /root/.my.cnf
-# 3. specify the config file with --defaults-extra-file
-#    (this option DOESN'T WORK WITH MYSQLHOTCOPY)
-#
-
-# create .my.cnf
-# only if dbusername and dbpassword specified.
-# we create a tmp file because we don't want to
-# specify the password on the command line.
-
 defaultsfile=""
+workcnf=""
 
-if [ -n "$dbusername" -a -n "$dbpassword" ]
-then
-   home=`runcmd getent passwd "root" | @AWK@ -F: '{print $6}'`
+function mysql_cleanup() {
+   [ -n "$workcnf" ] || return 0
+   mysql_su "rm -f $(shellquote "$workcnf")" || {
+      error "Can't remove temporary MySQL credentials '$workcnf'."
+      return 1
+   }
+   workcnf=""
+}
 
-   runcmd test -d "$home" || fatal "Can't find root's home directory ($home)."
+# MySQL option files use double-quoted strings with backslash escapes.
+function mysql_option_value() {
+   local value="$1"
+   value="${value//\\/\\\\}"
+   value="${value//\"/\\\"}"
+   value="${value//$'\n'/\\n}"
+   value="${value//$'\r'/\\r}"
+   value="${value//$'\t'/\\t}"
+   printf '"%s"' "$value"
+}
 
-   mycnf="$home/.my.cnf"
-
-   workcnf="$mycnf"
-
-   if runcmd test -f "$workcnf"
-   then
-      # rename temporarily
-      tmpcnf="$workcnf.disable"
-      debug "mv $workcnf $tmpcnf"
-      runcmd mv "$workcnf" "$tmpcnf"
-   fi
-
-   runcmd sh -c 'umask 077; cat > "$1"' sh "$workcnf" <<EOF
-# auto generated backupninja mysql conf
-[mysql]
-host=$dbhost
-user=$dbusername
-password="$dbpassword"
-
-[mysqldump]
-host=$dbhost
-user=$dbusername
-password="$dbpassword"
-
-[mysqlhotcopy]
-host=$dbhost
-user=$dbusername
-password="$dbpassword"
-
-[mysqladmin]
-host=$dbhost
-user=$dbusername
-password="$dbpassword"
+if [ -n "$dbusername" ]; then
+   workcnf=$(mysql_su 'umask 077; mktemp /tmp/backupninja-mysql.XXXXXX') || \
+      fatal "Can't create temporary MySQL credentials in the backup target."
+   [ -n "$workcnf" ] || fatal "Empty temporary MySQL credentials path."
+   trap 'mysql_cleanup || exit 1' EXIT
+   trap 'exit 1' HUP INT TERM
+   mysql_su "cat > $(shellquote "$workcnf")" <<EOF || fatal "Can't write temporary MySQL credentials."
+[client]
+host=$(mysql_option_value "$dbhost")
+user=$(mysql_option_value "$dbusername")
+password=$(mysql_option_value "$dbpassword")
 EOF
-   defaultsfile="--defaults-extra-file=$mycnf"
-
-# else, if a user is set use her .my.cnf
-elif [ -n "$user" ]
-then
-   userset=true;
-
-   userhome=`runcmd getent passwd "$user" | @AWK@ -F: '{print $6}'`
-   if [ $? -eq 2 ]
-   then
-      fatal "User $user not found in /etc/passwd"
-   fi
+   # All three SQL clients support this as their first option. Do not let
+   # an existing ~/.my.cnf override the explicitly configured credentials.
+   defaultsfile="--defaults-file=$workcnf"
+elif [ -n "$configured_user" ]; then
+   userpasswd=$(runcmd getent passwd "$user") || fatal "User $user not found in /etc/passwd"
+   userhome=$(printf '%s\n' "$userpasswd" | @AWK@ -F: '{print $6}')
+   [ -n "$userhome" ] || fatal "Can't find the home directory of $user."
    debug "User home set to: $userhome"
-   runcmd test -f "$userhome/.my.cnf" || fatal "Can't find config file in $userhome/.my.cnf"
-
+   mysql_su "test -r $(shellquote "$userhome/.my.cnf")" || fatal "Can't read config file in $userhome/.my.cnf"
    defaultsfile="--defaults-extra-file=$userhome/.my.cnf"
    debug "using $defaultsfile"
-   # otherwise use $configfile
 else
-   user=root
    defaultsfile="--defaults-extra-file=$configfile"
 fi
 
 #######################################################################
 ## HOT COPY
 
-if [ "$hotcopy" == "yes" ]
-then
+if [ "$hotcopy" = yes ]; then
    info "Initializing hotcopy method"
-   if [ "$databases" == "all" ]
-   then
-      execstr="$MYSQLHOTCOPY --quiet --allowold --regexp /.\*/./.\*/ $(shellquote "$hotdir")"
+   if [ "$databases" = all ]; then
+      execstr="$(shellquote "$MYSQLHOTCOPY") --quiet --allowold --regexp /.\*/./.\*/ $(shellquote "$hotdir")"
       debug "su $user -c \"$execstr\""
-      if [ ! $test ]
-      then
-         output=`mysql_su "$execstr" 2>&1`
+      if [ ! "$test" ]; then
+         output=$(mysql_su "$execstr" 2>&1)
          code=$?
-         if [ "$code" == "0" ]
-         then
+         if [ "$code" = 0 ]; then
             debug "$output"
             info "Successfully finished hotcopy of all mysql databases"
          else
@@ -157,16 +130,13 @@ then
          fi
       fi
    else
-      for db in $databases
-      do
-         execstr="$MYSQLHOTCOPY --allowold $(shellquote "$db") $(shellquote "$hotdir")"
-         debug 'su $user -c \"$execstr\"'
-         if [ ! $test ]
-         then
-            output=`mysql_su "$execstr" 2>&1`
+      for db in $databases; do
+         execstr="$(shellquote "$MYSQLHOTCOPY") --allowold $(shellquote "$db") $(shellquote "$hotdir")"
+         debug "su $user -c \"$execstr\""
+         if [ ! "$test" ]; then
+            output=$(mysql_su "$execstr" 2>&1)
             code=$?
-            if [ "$code" == "0" ]
-            then
+            if [ "$code" = 0 ]; then
                debug "$output"
                info "Successfully finished hotcopy of mysql database $db"
             else
@@ -181,45 +151,32 @@ fi
 ##########################################################################
 ## SQL DUMP
 
-if [ "$sqldump" == "yes" ]
-then
+if [ "$sqldump" = yes ]; then
    info "Initializing SQL dump method"
-   if [ "$databases" == "all" ]
-   then
-      dblist=$(mysql_su "$MYSQL $(shellquote "$defaultsfile") -N -B -e 'show databases'") || \
+   if [ "$databases" = all ]; then
+      dblist=$(mysql_su "$(shellquote "$MYSQL") $(shellquote "$defaultsfile") -N -B -e 'show databases'") || \
          fatal "Authentication problem, maybe user/password is wrong or mysqld is not running?"
       databases=$(printf '%s\n' "$dblist" | sed 's/|//g;/\+----/d;/^\(information\|performance\)_schema$/d')
    fi
 
-   for db in $databases
-   do
+   for db in $databases; do
       # Sanitize database name
-      db=$(echo $db | tr -d \'\;)
-
-      DUMP_BASE="$MYSQLDUMP $(shellquote "$defaultsfile") $sqldumpoptions"
-
-      # Dumping structure and data
+      db=$(echo "$db" | tr -d \'\;)
+      DUMP_BASE="$(shellquote "$MYSQLDUMP") $(shellquote "$defaultsfile") $sqldumpoptions"
       DUMP="$DUMP_BASE $ignore $(shellquote "$db")"
 
-      # If requested, dump only the table structure for this database
-      if echo "$nodata" | grep -E '(^|[[:space:]])'"$db\." >/dev/null
-      then
-         # Get the structure of the tables, without data
+      if echo "$nodata" | grep -E '(^|[[:space:]])'"$db\." >/dev/null; then
          DUMP_STRUCT="$DUMP_BASE --no-data $(shellquote "$db")"
-         for qualified_table in $nodata
-         do
-            table=$( expr match "$qualified_table" "$db\.\(.\+\)" )
+         for qualified_table in $nodata; do
+            table=$(expr match "$qualified_table" "$db\.\(.\+\)")
             DUMP_STRUCT="$DUMP_STRUCT $(shellquote "$table")"
          done
          DUMP="( $DUMP && $DUMP_STRUCT )"
       fi
 
-      # Test to make sure mysqld is running, if it is not sqldump will not work
-      mysql_su "$MYSQLADMIN $(shellquote "$defaultsfile") ping 2>&1 >/dev/null"
-      if [ $? -ne 0 ]; then
+      mysql_su "$(shellquote "$MYSQLADMIN") $(shellquote "$defaultsfile") ping >/dev/null 2>&1" || \
          fatal "mysqld doesn't appear to be running!"
-      fi
-      if [ "$compress" == "yes" ]; then
+      if [ "$compress" = yes ]; then
          target="$dumpdir/${db}.sql.gz"
       else
          target="$dumpdir/${db}.sql"
@@ -227,12 +184,10 @@ then
       execstr=$(transport_dump_command "$DUMP" "$target" "$compress")
       debug "su $user -c \"$execstr\""
 
-      if [ ! $test ]
-      then
-         output=`mysql_su "$execstr" 2>&1`
+      if [ ! "$test" ]; then
+         output=$(mysql_su "$execstr" 2>&1)
          code=$?
-         if [ "$code" == "0" ]
-         then
+         if [ "$code" = 0 ]; then
             debug "$output"
             info "Successfully finished dump of mysql database $db"
          else
@@ -243,22 +198,12 @@ then
    done
 fi
 
-# clean up tmp config file
-if [ "$dbusername" != "" -a "$dbpassword" != "" ]
-then
-   ## clean up tmp config file
-   debug "rm $workcnf"
-   runcmd rm "$workcnf"
-   if [ -n "$tmpcnf" ] && runcmd test -f "$tmpcnf"
-   then
-      debug "mv $tmpcnf $workcnf"
-      runcmd mv "$tmpcnf" "$workcnf"
-   fi
-fi
+mysql_cleanup || fatal "Failed to clean up MySQL credentials."
+trap - EXIT HUP INT TERM
 
-if [ "$failed" == 0 ]; then
+if [ "$failed" = 0 ]; then
    transport_finalize "$backupdir"
-elif [ "$transport_name" != "local" ] && [ -n "$transport_host_backupdir" ]; then
+elif [ "$transport_name" != local ] && [ -n "$transport_host_backupdir" ]; then
    error "Not fetching backups to $transport_host_backupdir because a backup failed; previous backups were left unchanged."
 fi
-return 0
+return "$failed"

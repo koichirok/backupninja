@@ -168,7 +168,7 @@ teardown_pgsql() {
     greplog "Info: Successfully finished dump of pgsql database bntest_v11vJj"
     not_greplog "Warning:"
     gzip -tq "${BN_BACKUPDIR}/postgres-host/bntest_v11vJj.sql.gz"
-    grep -q '^exec -i bntest-postgres su -l -s /bin/sh -c ' "${BATS_TEST_TMPDIR}/runtime.log"
+    grep -q '^exec -i bntest-postgres sh -c ' "${BATS_TEST_TMPDIR}/runtime.log"
     grep -Fxq "exec -i bntest-postgres tar -cf - -C ${BN_BACKUPDIR}/postgres-container ." \
         "${BATS_TEST_TMPDIR}/runtime.log"
 }

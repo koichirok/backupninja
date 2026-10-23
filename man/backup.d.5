@@ -105,6 +105,10 @@ The file format of the action configuration files is "ini style." Sections are c
 The mysql, pgsql and gitlab handlers can execute backup commands in a running
 container. Add a [transport] section to the action file. The default transport
 is local.
+Other handlers reject a non-local [transport] before executing any handler
+commands, rather than silently operating on the host. Their existing SSH or
+remote-repository settings are separate from command transports. Ninjahelper
+wizards configure host-side actions; they do not inspect containers.
 
 For a Docker or Podman container, set transport to docker or podman and set
 container to the container name or ID. For Docker Compose, set transport to
@@ -115,6 +119,9 @@ The optional user, workdir, and repeatable environment settings are passed to
 container execution. The docker, podman, and docker_compose settings can
 override executable names. docker_compose names a standalone Compose
 executable; otherwise "docker compose" is used.
+environment values use the runtime's command-line --env option: do not place
+secrets there. Use target-side credential files or the handler's dedicated
+credential settings instead.
 
 Commands write to the handler's backupdir inside the target. If that directory
 is on a host-visible volume, no additional setting is necessary. Otherwise,
@@ -131,6 +138,12 @@ do not require Bash in the target. Their compressed dumps detect failures
 from both the database tool and gzip and replace existing dump files only
 after success. The GitLab handler invokes gitlab-backup directly; any runtime
 dependencies of GitLab's own tools still need to be installed in its image.
+Dump staging files are private, uniquely named files in the output directory,
+removed on failure. Host destination symlink parents and directory/file
+collisions are rejected before installing fetched files.
+The database handlers also need mktemp and id in the target, and su only
+when root must switch to a different OS user. SIGKILL or a lost container
+connection can prevent cleanup; protect target temporary storage accordingly.
 
 Backupninja, its handler files and the transport library are executed on the
 host with Bash. Only commands and shell scripts sent to the target must be
@@ -144,6 +157,29 @@ to portable options such as -n in backupninja.conf to avoid that warning.
 
 The pgsql handler runs commands as the system user PGSQLUSER. Set dbusername
 in the action file when the PostgreSQL role differs from that user.
+The container transport can run as root or directly as PGSQLUSER. The latter
+does not require su or chown privileges. Container environment and workdir
+are retained; local PostgreSQL user switches still use a login shell.
+
+MySQL defaults to the transport's current OS user (locally root); the action's
+user option can select another OS user when execution privileges permit it.
+dbusername is a database login, not an OS user. Explicit database credentials
+are sent on standard input to a private mode-0600 temporary option file in
+the target's /tmp, never to the command line or an existing ~/.my.cnf. The
+file is removed after success or failure. mysql, mysqladmin and mysqldump
+receive --defaults-file as their first option; this avoids user option files
+overriding the supplied credentials. With no explicit credentials, existing
+user-home and --defaults-extra-file authentication is retained.
+mysqlhotcopy reads standard option files through its DBI driver and does not
+accept --defaults-file or --defaults-extra-file. Therefore hotcopy with
+explicit dbusername/dbpassword or configfile is rejected; use user-home
+authentication or sqldump instead. The mysql wizard offers only sqldump for
+explicit password authentication.
+
+GitLab PostgreSQL overrides are sent on standard input and exported inside
+the target shell, not included in the container runtime's command-line
+arguments. They remain visible in the backup process environment to users
+with permission to inspect that process.
 
 For example, for a Mattermost database in a read-only PostgreSQL Alpine
 container:

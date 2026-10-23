@@ -27,6 +27,7 @@ do_mysql_databases() {
 }
 
 do_mysql_password() {
+   _DISABLE_HOTCOPY=yes
    inputBox "$mysql_title" "specify a mysql user:"
    [ $? = 1 ] && return
    user=$REPLY
@@ -160,7 +161,9 @@ The result is that ~/.my.cnf is used for authentication.
 
 PASSWORD
 With this method, you manually specify a mysql user and
-password in the backup action configuration.
+password in the backup action configuration. A private temporary
+option file is used in the backup target, without modifying ~/.my.cnf.
+This method requires mysqldump; mysqlhotcopy cannot use that option file.
 
 DEBIAN
 With this method, we use the debian-sys-maint user which is

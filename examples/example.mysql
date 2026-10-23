@@ -32,6 +32,7 @@ compress    = yes
 # user = root
 # workdir = /var/lib/mysql
 # environment = NAME=value
+# Use environment only for non-secret values (runtime command-line options).
 # hostbackupdir = /var/backups/mysql
 #
 # [transport]
@@ -48,7 +49,10 @@ compress    = yes
 # user = some-unix-user
 #
 # 2. specifying the mysql dbuser and dbpassword,
-#    which generates a temporary .my.cnf in /root/.my.cnf
+#    which generates a private mode-0600 option file in the target's /tmp.
+#    Existing ~/.my.cnf files are never moved or overwritten. The temporary
+#    file is removed on success and failure. This method requires sqldump;
+#    mysqlhotcopy cannot use an explicit defaults file.
 # dbusername  = <some-mysql-user>
 # dbpassword  = <password>
 #
@@ -62,19 +66,23 @@ compress    = yes
 ### all options ###
 
 # configfile = < path/to/file > (default = /etc/mysql/debian.cnf)
-# The config file is passed to mysql with --defaults-file.
+# The config file is passed to mysql, mysqladmin and mysqldump with
+# --defaults-extra-file as the first option (normal ~/.my.cnf still applies).
 # On debian, this default will allow backupninja to make backups
 # of mysql without configuring any additional options.
-# (this option is not compatible with "user" or "dbusername").
+# Explicit dbusername credentials take precedence over this setting.
 #
-# user = <user> (default = root)
+# user = <OS user> (default = the transport's current OS user; locally root)
 # Run mysql commands as 'user'. A valid .my.cnf must exist with a
 # database username and password in the user's home directory.
-# (this option is not compatible with "configfile" or "dbusername").
+# When dbusername is also set, the temporary credentials file is used instead.
+# A non-root transport can use its own OS user, not switch to another user.
 #
 # dbusername = <dbuser> (no default)
 # The user must have access to the databases specified later.
-# (this option is not compatible with "configfile" or "user").
+# This is a database login, not an OS user. mysql, mysqladmin and mysqldump
+# use --defaults-file as their first option, without loading normal my.cnf
+# files (MySQL login-path files, if configured, are a separate mechanism).
 #
 # dbpassword = <dbpass> (no default)
 # The password used with dbusername. this password will NOT be passed
@@ -102,6 +110,8 @@ compress    = yes
 #
 # hotcopy = < yes | no > (default = no)
 # make a backup of the actual database binary files using mysqlhotcopy.
+# Only implicit/default or user-home authentication is supported. Explicit
+# dbusername/dbpassword or configfile with hotcopy is rejected before execution.
 #
 # sqldump = < yes | no > (default = no)
 # make a backup using mysqldump. this creates text files with sql commands

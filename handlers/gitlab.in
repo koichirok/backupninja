@@ -65,7 +65,13 @@ done
 # Never log the environment: it may contain PostgreSQL credentials.
 debug "Running gitlab-backup create through $transport_name transport"
 if [ ! "$test" ]; then
-   if runcmd env "${env[@]}" gitlab-backup create "${options[@]}"; then
+   # Send assignments on stdin, not in the runtime's visible command line.
+   script=""
+   for assignment in "${env[@]}"; do
+      script+="export ${assignment%%=*}=$(shellquote "${assignment#*=}")"$'\n'
+   done
+   script+='exec gitlab-backup create "$@"'
+   if runcmd sh -s -- "${options[@]}" <<< "$script"; then
       info "Successfully finished GitLab backup"
       transport_finalize "$backupdir"
    else

@@ -6,8 +6,10 @@
 # Set hostbackupdir to copy the completed backup to the host; otherwise the
 # container path should be backed by a host-visible volume. The copy only
 # happens when every dump succeeded, and files on the host are replaced only
-# after the whole transfer succeeded. Commands must run as root in the
-# container (do not set user) so that the handler can switch to PGSQLUSER.
+# after the whole transfer succeeded. Commands can run as root (the handler
+# switches to PGSQLUSER) or directly as PGSQLUSER with transport user set.
+# Container environment and workdir are retained, including when switching
+# users. A different non-root user cannot switch to PGSQLUSER.
 #
 # Example for a Mattermost database in a read-only postgres:*-alpine
 # container started with POSTGRES_USER=mmuser and POSTGRES_DB=mattermost,
@@ -37,6 +39,7 @@
 # container = postgres
 # workdir = /var/lib/postgresql
 # environment = NAME=value
+# Use environment only for non-secret values (runtime command-line options).
 # hostbackupdir = /var/backups/postgres
 #
 # [transport]
