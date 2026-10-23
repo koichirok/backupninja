@@ -3,8 +3,7 @@ Upstream
 
 * run the full testsuite
 
-        vagrant rsync local && \
-        vagrant ssh -c "build-backupninja.sh && sudo /vagrant/test/test.sh"
+        bash test/docker.sh
 
 * prepare the environment:
 
@@ -24,7 +23,7 @@ Upstream
 
         git commit configure.ac CHANGELOG.md \
             -m "Releasing backupninja $VERSION" && \
-        git clean -fdx -e .vagrant && \
+        git clean -fdx && \
         git tag -s "backupninja-$VERSION" \
             -m "Releasing backupninja $VERSION" && \
         ./autogen.sh && \
@@ -42,7 +41,7 @@ Upstream
         mkdir -p ../tarballs && \
         mv backupninja-$VERSION.tar.gz ../tarballs/ && \
         make distclean && \
-        git clean -fdx -e .vagrant
+        git clean -fdx
 
 Debian
 ======
